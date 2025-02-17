@@ -318,6 +318,11 @@ class MainWindow(QMainWindow):
         self.window_check_timer.timeout.connect(self.check_windsurf_windows)
         self.window_check_timer.start(1000)  # Check every second
         
+        # Create display update timer
+        self.display_timer = QTimer(self)
+        self.display_timer.timeout.connect(self.update_displays)
+        self.display_timer.start(500)  # Update every 500ms
+        
     def setup_ui(self):
         """Initialize the user interface."""
         self.setWindowTitle("Screen Reader Debug")
@@ -439,21 +444,35 @@ class MainWindow(QMainWindow):
 
     def update_displays(self):
         """Update all display areas."""
-        # Update debug log
-        if self.debug_log_file.exists():
-            with open(self.debug_log_file, 'r') as f:
-                self.debug_log.setText(f.read())
-            self.debug_log.moveCursor(QTextCursor.MoveOperation.End)
-        
-        # Update image preview
-        self.update_image_preview()
-        
-        # Update captured text
-        if self.captured_text_file.exists():
-            with open(self.captured_text_file, 'r') as f:
-                self.text_log.setText(f.read())
-            self.text_log.moveCursor(QTextCursor.MoveOperation.End)
-
+        try:
+            # Update debug log
+            if self.debug_log_file.exists():
+                with open(self.debug_log_file, 'r') as f:
+                    current_text = f.read()
+                    if current_text != self.debug_log.toPlainText():
+                        self.debug_log.setText(current_text)
+                        # Scroll to bottom
+                        self.debug_log.verticalScrollBar().setValue(
+                            self.debug_log.verticalScrollBar().maximum()
+                        )
+            
+            # Update image preview
+            self.update_image_preview()
+            
+            # Update captured text
+            if self.captured_text_file.exists():
+                with open(self.captured_text_file, 'r') as f:
+                    current_text = f.read()
+                    if current_text != self.text_log.toPlainText():
+                        self.text_log.setText(current_text)
+                        # Scroll to bottom
+                        self.text_log.verticalScrollBar().setValue(
+                            self.text_log.verticalScrollBar().maximum()
+                        )
+                        
+        except Exception as e:
+            print(f"Error updating displays: {str(e)}")  # Use print to avoid recursive logging
+            
     def capture_screen(self):
         """Capture the selected region of the screen."""
         if not self.region:
@@ -678,25 +697,18 @@ class MainWindow(QMainWindow):
     def log_message(self, message: str):
         """Log a message to the debug log file."""
         try:
-            # Format message with timestamp
-            timestamp = datetime.now().strftime("[%Y-%m-%d %H:%M:%S]")
-            formatted_msg = f"{timestamp} {message}"
+            # Get timestamp
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            
+            # Format message
+            log_entry = f"[{timestamp}] {message}\n"
             
             # Write to file
             with open(self.debug_log_file, 'a') as f:
-                f.write(formatted_msg + "\n")
-            
-            # Update UI safely
-            def update_log():
-                try:
-                    print(formatted_msg)
-                except Exception as e:
-                    print(f"Error updating log display: {str(e)}")
-                    
-            QTimer.singleShot(0, update_log)
+                f.write(log_entry)
             
         except Exception as e:
-            print(f"Error logging message: {str(e)}")
+            print(f"Error logging message: {str(e)}")  # Use print to avoid recursive logging
             
     def closeEvent(self, event):
         """Handle window close event."""
