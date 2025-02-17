@@ -129,32 +129,68 @@ class RegionSelector(QWidget):
         self.setGeometry(0, 0, QApplication.primaryScreen().size().width(), QApplication.primaryScreen().size().height())
         self.update_confirm_button_position()
     
+    def get_resize_handle(self, edge):
+        """Get the rectangle for a resize handle."""
+        if not hasattr(self, 'selection'):
+            return QRect()
+            
+        handle_size = 10
+        half_size = handle_size // 2
+        
+        if edge == 'NW':  # Northwest
+            return QRect(
+                self.selection.left() - half_size,
+                self.selection.top() - half_size,
+                handle_size,
+                handle_size
+            )
+        elif edge == 'NE':  # Northeast
+            return QRect(
+                self.selection.right() - half_size,
+                self.selection.top() - half_size,
+                handle_size,
+                handle_size
+            )
+        elif edge == 'SW':  # Southwest
+            return QRect(
+                self.selection.left() - half_size,
+                self.selection.bottom() - half_size,
+                handle_size,
+                handle_size
+            )
+        elif edge == 'SE':  # Southeast
+            return QRect(
+                self.selection.right() - half_size,
+                self.selection.bottom() - half_size,
+                handle_size,
+                handle_size
+            )
+        return QRect()
+
     def paintEvent(self, event):
         """Paint the selection overlay."""
         painter = QPainter(self)
         
         # Set up semi-transparent overlay
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        overlay_color = QColor(0, 0, 0, 128)
+        painter.fillRect(self.rect(), overlay_color)
         
-        # Draw semi-transparent overlay for the entire window
-        painter.fillRect(self.rect(), QColor(255, 255, 255, 1))
-        
-        if self.selection:
-            # Draw selection rectangle border
+        if hasattr(self, 'selection') and self.selection.isValid():
+            # Clear selection area
+            painter.eraseRect(self.selection)
+            
+            # Draw selection border
             pen = QPen(QColor(0, 120, 215), 2)
             painter.setPen(pen)
             painter.drawRect(self.selection)
             
             # Draw resize handles
-            handle_size = 6
-            painter.fillRect(self.selection.left() - handle_size//2, self.selection.top() - handle_size//2, 
-                           handle_size, handle_size, QColor(0, 120, 215))
-            painter.fillRect(self.selection.right() - handle_size//2, self.selection.top() - handle_size//2,
-                           handle_size, handle_size, QColor(0, 120, 215))
-            painter.fillRect(self.selection.left() - handle_size//2, self.selection.bottom() - handle_size//2,
-                           handle_size, handle_size, QColor(0, 120, 215))
-            painter.fillRect(self.selection.right() - handle_size//2, self.selection.bottom() - handle_size//2,
-                           handle_size, handle_size, QColor(0, 120, 215))
+            handle_color = QColor(0, 120, 215)
+            painter.setBrush(handle_color)
+            
+            for edge in ['NW', 'NE', 'SW', 'SE']:
+                handle = self.get_resize_handle(edge)
+                painter.drawRect(handle)
             
             # Position confirm button at bottom center of selection
             button_x = self.selection.center().x() - self.confirm_button.width() // 2
