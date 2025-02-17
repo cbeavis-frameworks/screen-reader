@@ -1,0 +1,93 @@
+Screen Reader Application Specification
+===================================
+
+Overview
+--------
+The Screen Reader is a desktop application designed to capture and monitor specific regions of windows, particularly focusing on the Windsurf IDE. It provides real-time screen capture, image comparison, text extraction using OpenAI's Vision API, and a user interface for managing capture regions and viewing results.
+
+Core Features
+------------
+1. Window Selection
+   - List and select active windows
+   - Focus on Windsurf application window
+   - Always-on-top window option
+   - Window bounds tracking
+
+2. Region Selection
+   - Interactive region selection interface
+   - Draggable and resizable selection box
+   - Region coordinate persistence
+   - Visual feedback during selection
+
+3. Screen Capture
+   - Capture specific window regions
+   - Periodic capture (2-second intervals)
+   - Perceptual image comparison
+   - Ignore minor UI changes (loading icons, etc.)
+   - Preview of captured region
+
+4. Text Extraction
+   - OpenAI Vision API integration
+   - Intelligent text deduplication
+   - Timestamp-based logging
+   - Context-aware text processing
+   - Automatic text formatting
+
+5. User Interface
+   - Tab-based interface (Preview/Debug)
+   - Real-time image preview
+   - Debug logging system
+   - Start/Stop capture controls
+   - Window selection dropdown
+   - Captured text display
+
+Technical Components
+------------------
+1. Image Processing
+   - MSS for screen capture
+   - PIL for image manipulation
+   - ImageHash for perceptual comparison
+   - Configurable similarity threshold
+
+2. Window Management
+   - PyQt6 for GUI framework
+   - Quartz integration for macOS windows
+   - Coordinate space conversion
+   - Window state tracking
+
+3. Text Processing
+   - OpenAI Vision API for text extraction
+   - Asynchronous API integration
+   - Text deduplication system
+   - Context-aware processing
+   - Timestamp-based organization
+
+4. Data Management
+   - Local image storage
+   - Capture state persistence
+   - Debug log output
+   - Region coordinate saving
+   - Captured text persistence
+
+Dependencies
+-----------
+- PyQt6: GUI framework
+- MSS: Screen capture
+- Pillow: Image processing
+- ImageHash: Image comparison
+- PyObjC: macOS integration
+- OpenAI: Vision API integration
+- aiohttp: Async HTTP client
+- python-dotenv: Environment management
+- Python 3.x
+
+Environment Setup
+---------------
+1. Required Environment Variables
+   - OPENAI_API_KEY: For Vision API access
+
+2. File Structure
+   - output/: Captured data and logs
+   - temp/: Temporary files
+   - src/: Source code
+   - prompts/: OpenAI prompt templates
