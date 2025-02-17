@@ -491,94 +491,76 @@ class MainWindow(QMainWindow):
                 Quartz.CGRectNull,
                 Quartz.kCGWindowListOptionIncludingWindow,
                 window_id,
-                Quartz.kCGWindowImageBoundsIgnoreFraming
+                Quartz.kCGWindowImageBoundsIgnoreFraming | Quartz.kCGWindowImageShouldBeOpaque
             )
             
             if window_image:
-                # Convert to PIL Image
-                width = Quartz.CGImageGetWidth(window_image)
-                height = Quartz.CGImageGetHeight(window_image)
-                
-                # Create a bitmap context
-                context = Quartz.CGBitmapContextCreate(
-                    None,
-                    width,
-                    height,
-                    8,  # bits per component
-                    0,  # bytes per row (0 = automatic)
-                    Quartz.CGColorSpaceCreateDeviceRGB(),
-                    Quartz.kCGImageAlphaPremultipliedFirst | Quartz.kCGBitmapByteOrder32Little
-                )
-                
-                # Draw the image in the context
-                Quartz.CGContextDrawImage(
-                    context,
-                    Quartz.CGRectMake(0, 0, width, height),
-                    window_image
-                )
-                
-                # Get the raw image data
-                dataProvider = Quartz.CGDataProviderCreateWithData(
-                    None,
-                    Quartz.CGBitmapContextGetData(context),
-                    width * height * 4,
-                    None
-                )
-                
-                # Create image from the data
-                new_image = Quartz.CGImageCreate(
-                    width,
-                    height,
-                    8,  # bits per component
-                    32,  # bits per pixel
-                    width * 4,  # bytes per row
-                    Quartz.CGColorSpaceCreateDeviceRGB(),
-                    Quartz.kCGImageAlphaPremultipliedFirst | Quartz.kCGBitmapByteOrder32Little,
-                    dataProvider,
-                    None,
-                    True,
-                    Quartz.kCGRenderingIntentDefault
-                )
-                
-                # Convert CGImage to PIL Image
-                image_data = Quartz.CGDataProviderCopyData(Quartz.CGImageGetDataProvider(new_image))
-                img = Image.frombytes(
-                    "RGBA",
-                    (width, height),
-                    image_data,
-                    "raw",
-                    "BGRA"
-                )
-                
-                # Crop to selected region
-                region_x = self.region['x'] - window_bounds['x']
-                region_y = self.region['y'] - window_bounds['y']
-                region_box = (
-                    region_x,
-                    region_y,
-                    region_x + self.region['width'],
-                    region_y + self.region['height']
-                )
-                img = img.crop(region_box)
-                
-                # Calculate image hash
-                current_hash = hashlib.md5(img.tobytes()).hexdigest()
-                
-                # Check if image has changed
-                if current_hash != self.last_image_hash:
-                    self.log_message("[INFO] Change detected in captured region")
+                try:
+                    # Get image dimensions
+                    width = Quartz.CGImageGetWidth(window_image)
+                    height = Quartz.CGImageGetHeight(window_image)
                     
-                    # Update state
-                    self.last_capture = img
-                    self.last_image_hash = current_hash
+                    # Get image data
+                    data_provider = Quartz.CGImageGetDataProvider(window_image)
+                    if not data_provider:
+                        raise Exception("Failed to get data provider")
+                        
+                    image_data = Quartz.CGDataProviderCopyData(data_provider)
+                    if not image_data:
+                        raise Exception("Failed to copy image data")
                     
-                    # Update preview
-                    self.update_preview(img)
+                    # Convert to PIL Image
+                    img = Image.frombytes(
+                        "RGBA",
+                        (width, height),
+                        image_data,
+                        "raw",
+                        "BGRA"
+                    )
                     
-                    # Process the new image (placeholder for future OCR)
-                    self.log_message("[INFO] New image captured and saved")
-                else:
-                    self.log_message("[INFO] No change detected")
+                    # Crop to selected region
+                    region_x = self.region['x'] - window_bounds['x']
+                    region_y = self.region['y'] - window_bounds['y']
+                    region_box = (
+                        region_x,
+                        region_y,
+                        region_x + self.region['width'],
+                        region_y + self.region['height']
+                    )
+                    
+                    # Ensure crop region is within bounds
+                    region_box = (
+                        max(0, region_box[0]),
+                        max(0, region_box[1]),
+                        min(width, region_box[2]),
+                        min(height, region_box[3])
+                    )
+                    
+                    img = img.crop(region_box)
+                    
+                    # Calculate image hash
+                    current_hash = hashlib.md5(img.tobytes()).hexdigest()
+                    
+                    # Check if image has changed
+                    if current_hash != self.last_image_hash:
+                        self.log_message("[INFO] Change detected in captured region")
+                        
+                        # Update state
+                        self.last_capture = img
+                        self.last_image_hash = current_hash
+                        
+                        # Update preview
+                        self.update_preview(img)
+                        
+                        self.log_message("[INFO] New image captured and saved")
+                    else:
+                        self.log_message("[INFO] No change detected")
+                        
+                finally:
+                    # Clean up Quartz objects
+                    del image_data
+                    del data_provider
+                    del window_image
             else:
                 self.log_message("[ERROR] Failed to capture window image")
                 
