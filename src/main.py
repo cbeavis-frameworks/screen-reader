@@ -384,8 +384,18 @@ class MainWindow(QMainWindow):
         """Initialize the user interface."""
         self.setWindowTitle("Screen Reader Debug")
         
-        # Set window size
-        self.resize(800, 600)  # Reasonable default size
+        # Set window size and position
+        screen = QApplication.primaryScreen().geometry()
+        window_width = 800
+        window_height = 600
+        
+        # Position on left side of screen with small margin
+        self.setGeometry(
+            20,  # Left margin from screen edge
+            (screen.height() - window_height) // 2,  # Vertically centered
+            window_width,
+            window_height
+        )
         
         # Create main layout
         main_layout = QVBoxLayout()
