@@ -1,21 +1,28 @@
 import os
+import sys
 import json
+import asyncio
 from datetime import datetime
 from pathlib import Path
 from openai import OpenAI
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
+# Add parent directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+__all__ = ['DialogSummarizer', 'DialogObserver']
+
 class DialogSummarizer:
     """Handles summarization of dialog text using OpenAI."""
     
-    def __init__(self, temp_dir):
+    def __init__(self, output_dir):
         """Initialize the dialog summarizer."""
         # Set up paths
-        self.temp_dir = Path(temp_dir)
-        self.captured_text_file = self.temp_dir / 'captured_text.txt'
-        self.summaries_dir = self.temp_dir / 'summaries'
-        self.summaries_dir.mkdir(exist_ok=True)
+        self.output_dir = Path(output_dir)
+        self.captured_text_file = self.output_dir / 'captured_text.txt'
+        self.dialogs_dir = self.output_dir / 'dialogs'
+        self.dialogs_dir.mkdir(exist_ok=True)
         
         # Initialize OpenAI client
         self.client = OpenAI()
@@ -23,22 +30,23 @@ class DialogSummarizer:
         # Initialize state
         self.current_text = ''
         self.last_summary_time = datetime.now()
+        self.summarization_in_progress = False
+        self.text_changed_during_summarization = False
+        self.lock = asyncio.Lock()
         
-    def summarize_text(self, text):
+    async def summarize_text(self, text):
         """Summarize the given text using OpenAI."""
         try:
             # Skip if text is too short
             if len(text.strip()) < 50:
                 return None
                 
-            # Get previous summaries
+            # Get previous dialogs
             previous_dialogs = []
-            if self.summaries_dir.exists():
-                for summary_file in sorted(self.summaries_dir.glob('summary_*.txt')):
-                    with open(summary_file) as f:
-                        data = json.load(f)
-                        if 'summary' in data:
-                            previous_dialogs.append(data['summary'])
+            if self.dialogs_dir.exists():
+                for dialog_file in sorted(self.dialogs_dir.glob('dialog_*.txt')):
+                    with open(dialog_file) as f:
+                        previous_dialogs.append(f.read().strip())
                             
             # Read prompt template
             prompt_file = Path(__file__).parent / 'prompts' / 'summarize_dialog.txt'
@@ -47,96 +55,121 @@ class DialogSummarizer:
                 
             # Format prompt
             prompt = prompt_template.replace('CAPTURED_TEXT', text)
-            prompt = prompt.replace('PREVIOUS_DIALOGS', '\n'.join(previous_dialogs))
+            prompt = prompt.replace('PREVIOUS_DIALOGS', '\n'.join(previous_dialogs[-5:]))  # Only use last 5 dialogs
             
             # Call OpenAI API
             response = self.client.chat.completions.create(
-                model="gpt-4",
+                model="gpt-4o-mini",
+                response_format={"type": "json_object"},
                 messages=[
                     {"role": "user", "content": prompt}
                 ],
-                max_tokens=200,
-                temperature=0.7
+                max_tokens=300,
+                temperature=0.5
             )
             
             # Parse response as JSON
             response_text = response.choices[0].message.content.strip()
-            response_data = json.loads(response_text)
+            try:
+                response_data = json.loads(response_text)
+            except json.JSONDecodeError:
+                print(f"Error parsing OpenAI response as JSON: {response_text}")
+                return None
             
             # Get new dialog lines
             new_dialogs = response_data.get('dialog', [])
             if not new_dialogs:
                 return None
                 
-            # Save summary
+            # Save each dialog line to a timestamped file
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            summary_file = self.summaries_dir / f'summary_{timestamp}.txt'
-            
-            with open(summary_file, 'w') as f:
-                json.dump({
-                    'timestamp': timestamp,
-                    'original_text': text,
-                    'summary': '\n'.join(new_dialogs)
-                }, f, indent=2)
+            for i, dialog in enumerate(new_dialogs):
+                dialog_file = self.dialogs_dir / f'dialog_{timestamp}_{i:03d}.txt'
+                with open(dialog_file, 'w') as f:
+                    f.write(dialog)
                 
-            return '\n'.join(new_dialogs)
+            return new_dialogs
             
         except Exception as e:
             print(f"Error summarizing text: {e}")
             return None
             
-    def process_captured_text(self):
+    async def process_captured_text(self):
         """Process newly captured text."""
         try:
-            # Read current text
-            if not self.captured_text_file.exists():
-                return
+            async with self.lock:
+                # Check if summarization is already in progress
+                if self.summarization_in_progress:
+                    self.text_changed_during_summarization = True
+                    return
                 
-            text = self.captured_text_file.read_text().strip()
-            
-            # Skip if no new text
-            if text == self.current_text:
-                return
+                # Read current text
+                if not self.captured_text_file.exists():
+                    return
+                    
+                text = self.captured_text_file.read_text().strip()
                 
-            # Update current text
-            self.current_text = text
-            
-            # Summarize text
-            summary = self.summarize_text(text)
-            if summary:
-                print(f"Generated summary: {summary}")
+                # Skip if no new text
+                if text == self.current_text:
+                    return
                 
+                # Update current text and mark summarization as in progress
+                self.current_text = text
+                self.summarization_in_progress = True
+                
+            try:
+                # Process text
+                dialogs = await self.summarize_text(text)
+                if dialogs:
+                    print(f"New dialogs extracted: {len(dialogs)}")
+                    
+            finally:
+                async with self.lock:
+                    self.summarization_in_progress = False
+                    
+                    # If text changed during summarization, process it again
+                    if self.text_changed_during_summarization:
+                        self.text_changed_during_summarization = False
+                        await self.process_captured_text()
+                    
         except Exception as e:
             print(f"Error processing captured text: {e}")
-            
+            async with self.lock:
+                self.summarization_in_progress = False
+                
 class DialogFileHandler(FileSystemEventHandler):
     """Handles file system events for dialog text file."""
     
     def __init__(self, summarizer):
         """Initialize the file handler."""
+        super().__init__()
         self.summarizer = summarizer
+        self.loop = asyncio.get_event_loop()
         
     def on_modified(self, event):
         """Handle file modification events."""
         if event.src_path == str(self.summarizer.captured_text_file):
-            self.summarizer.process_captured_text()
+            self.loop.create_task(self.summarizer.process_captured_text())
+            
+    def on_created(self, event):
+        """Handle file creation events."""
+        if event.src_path == str(self.summarizer.captured_text_file):
+            self.loop.create_task(self.summarizer.process_captured_text())
             
 class DialogObserver:
     """Observes dialog text file for changes."""
     
-    def __init__(self, temp_dir):
+    def __init__(self, output_dir):
         """Initialize the dialog observer."""
-        self.summarizer = DialogSummarizer(temp_dir)
+        self.summarizer = DialogSummarizer(output_dir)
         self.event_handler = DialogFileHandler(self.summarizer)
         self.observer = Observer()
         
     def start(self):
         """Start observing the dialog text file."""
-        self.observer.schedule(
-            self.event_handler,
-            str(self.summarizer.temp_dir),
-            recursive=False
-        )
+        # Watch the directory containing the captured text file
+        watch_dir = str(self.summarizer.captured_text_file.parent)
+        self.observer.schedule(self.event_handler, watch_dir, recursive=False)
         self.observer.start()
         
     def stop(self):

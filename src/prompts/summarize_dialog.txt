@@ -23,6 +23,8 @@ Instructions:
 
 Please try not to give me dialog lines that are already summarized, I am looking for new information
 
+Dialog lines should be in the first person and the tone is that of a human talking to me, summarizing what the IDE is saying but as if they are the ones performing the actions or asking the questions.
+
 Please respond in the following JSON format:
 {"dialog": ["", "", ..]}
 

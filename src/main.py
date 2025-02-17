@@ -3,35 +3,36 @@ import sys
 import time
 import base64
 import asyncio
-import hashlib
 import json
-from pathlib import Path
 from datetime import datetime
-from PIL import Image
-import numpy as np
-import mss  # Import just mss
-import io
+from pathlib import Path
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QPushButton, QLabel, QComboBox, QTextEdit, QTabWidget
+    QPushButton, QLabel, QTabWidget, QTextEdit, QComboBox
 )
-from PyQt6.QtCore import (
-    Qt,
-    QRect,
-    QPoint,
-    QTimer,
-    pyqtSignal,
-    QEventLoop
+from PyQt6.QtCore import Qt, QTimer, QRect, pyqtSignal, QPoint
+from PyQt6.QtGui import (
+    QImage, QPixmap, QPainter, QColor, QPen, QCursor, QTextCursor
 )
-from PyQt6.QtGui import QPixmap, QTextCursor, QPainter, QColor, QPen, QImage
+from PIL import Image, ImageQt
+import imagehash
+
+# Add parent directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from src.openai_client import OpenAIClient
+from src.region_selector import RegionSelector
+from src.dialog_summarizer import DialogSummarizer, DialogObserver
+
+import hashlib
+import mss  # Import just mss
+import io
+import numpy as np
 from dotenv import load_dotenv
 import AppKit
 import Quartz
 import threading
-from openai_client import OpenAIClient
-from dialog_summarizer import start_dialog_summarizer, DialogSummarizer
-from chat_monitor import ChatMonitor
-import imagehash
+from src.chat_monitor import ChatMonitor
 
 def get_windsurf_app():
     """Get Windsurf application if it's running."""
@@ -78,254 +79,6 @@ def get_windsurf_windows(app_pid):
             
     return windows
 
-class RegionSelector(QWidget):
-    """Widget for selecting a region of the screen."""
-    regionSelected = pyqtSignal(dict)
-    
-    def __init__(self, window_bounds, region_file, initial_region=None):
-        """Initialize the region selector."""
-        super().__init__()
-        
-        self.window_bounds = window_bounds
-        self.region_file = region_file
-        
-        # Set window flags
-        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        
-        # Initialize selection
-        if initial_region:
-            self.selection = initial_region
-        else:
-            # Default to full window if no initial region
-            self.selection = QRect(
-                0,  # Relative to widget
-                0,  # Relative to widget
-                window_bounds.width(),
-                window_bounds.height()
-            )
-        
-        # Initialize state
-        self.dragging = False
-        self.resizing = False
-        self.drag_start = QPoint()
-        self.resize_edge = None
-        self.resize_start = QRect()
-        
-        # Create confirm button
-        self.confirm_button = QPushButton("Confirm", self)
-        self.confirm_button.clicked.connect(self.confirm_selection)
-        self.confirm_button.setStyleSheet("""
-            QPushButton {
-                background-color: #4CAF50;
-                color: white;
-                border: none;
-                padding: 5px 10px;
-                border-radius: 3px;
-            }
-            QPushButton:hover {
-                background-color: #45a049;
-            }
-        """)
-        
-        # Set geometry to match window bounds
-        self.setGeometry(window_bounds)
-        self.update_confirm_button_position()
-    
-    def get_resize_handle(self, edge):
-        """Get the rectangle for a resize handle."""
-        if not hasattr(self, 'selection'):
-            return QRect()
-            
-        handle_size = 10
-        half_size = handle_size // 2
-        
-        if edge == 'NW':  # Northwest
-            return QRect(
-                self.selection.left() - half_size,
-                self.selection.top() - half_size,
-                handle_size,
-                handle_size
-            )
-        elif edge == 'NE':  # Northeast
-            return QRect(
-                self.selection.right() - half_size,
-                self.selection.top() - half_size,
-                handle_size,
-                handle_size
-            )
-        elif edge == 'SW':  # Southwest
-            return QRect(
-                self.selection.left() - half_size,
-                self.selection.bottom() - half_size,
-                handle_size,
-                handle_size
-            )
-        elif edge == 'SE':  # Southeast
-            return QRect(
-                self.selection.right() - half_size,
-                self.selection.bottom() - half_size,
-                handle_size,
-                handle_size
-            )
-        return QRect()
-
-    def paintEvent(self, event):
-        """Paint the selection overlay."""
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        
-        if hasattr(self, 'selection') and self.selection.isValid():
-            # Draw semi-transparent selection area
-            selection_overlay = QColor(255, 255, 255, 40)  # Very light, mostly transparent
-            painter.fillRect(self.selection, selection_overlay)
-            
-            # Draw selection border
-            pen = QPen(QColor(0, 120, 215), 2)
-            painter.setPen(pen)
-            painter.drawRect(self.selection)
-            
-            # Draw resize handles
-            handle_color = QColor(0, 120, 215)
-            painter.setBrush(handle_color)
-            
-            for edge in ['NW', 'NE', 'SW', 'SE']:
-                handle = self.get_resize_handle(edge)
-                painter.drawRect(handle)
-            
-            # Position confirm button at bottom right of selection
-            self.update_confirm_button_position()
-        else:
-            # Just draw a very light overlay when no selection
-            overlay_color = QColor(0, 0, 0, 1)
-            painter.fillRect(self.rect(), overlay_color)
-    
-    def update_confirm_button_position(self):
-        """Update the position of the confirm button to stay within the selection."""
-        if hasattr(self, 'confirm_button') and hasattr(self, 'selection'):
-            # Position the button at the bottom right of the selection
-            button_width = 80
-            button_height = 30
-            self.confirm_button.setFixedSize(button_width, button_height)
-            
-            # Calculate button position
-            button_x = self.selection.right() - button_width - 5  # 5px padding
-            button_y = self.selection.bottom() - button_height - 5  # 5px padding
-            
-            # Ensure button stays within window bounds
-            if button_x < 0:
-                button_x = 5
-            elif button_x + button_width > self.width():
-                button_x = self.width() - button_width - 5
-                
-            if button_y < 0:
-                button_y = 5
-            elif button_y + button_height > self.height():
-                button_y = self.height() - button_height - 5
-            
-            self.confirm_button.move(button_x, button_y)
-
-    def mousePressEvent(self, event):
-        """Handle mouse press events."""
-        if event.button() == Qt.MouseButton.LeftButton:
-            pos = event.position().toPoint()
-            
-            # Check if clicking the confirm button
-            if self.confirm_button.geometry().contains(pos):
-                return
-            
-            # Check if clicking inside selection
-            if self.selection.contains(pos):
-                self.dragging = True
-                self.drag_start = pos - self.selection.topLeft()
-                self.setCursor(Qt.CursorShape.ClosedHandCursor)
-                return
-            
-            # Check for resize handles
-            handle_size = 10
-            for edge in ['NW', 'NE', 'SW', 'SE']:
-                if self.get_resize_handle(edge).contains(pos):
-                    self.resizing = True
-                    self.resize_edge = edge
-                    self.resize_start = QRect(self.selection)
-                    self.drag_start = pos
-                    return
-            
-            # Start new selection
-            self.selection = QRect(pos, pos)
-            self.update()
-            self.update_confirm_button_position()
-
-    def mouseMoveEvent(self, event):
-        """Handle mouse move events."""
-        pos = event.position().toPoint()
-        
-        if self.dragging:
-            # Update selection position while dragging
-            new_pos = pos - self.drag_start
-            self.selection.moveTopLeft(new_pos)
-            self.update()
-            self.update_confirm_button_position()
-            
-        elif self.resizing:
-            # Calculate resize based on edge
-            if self.resize_edge == 'SE':
-                self.selection.setBottomRight(pos)
-            elif self.resize_edge == 'SW':
-                self.selection.setBottomLeft(pos)
-            elif self.resize_edge == 'NE':
-                self.selection.setTopRight(pos)
-            elif self.resize_edge == 'NW':
-                self.selection.setTopLeft(pos)
-            
-            self.update()
-            self.update_confirm_button_position()
-            
-        else:
-            # Update cursor based on position
-            handle_size = 10
-            for edge in ['NW', 'NE', 'SW', 'SE']:
-                if self.get_resize_handle(edge).contains(pos):
-                    cursor = Qt.CursorShape.CrossCursor if edge in ['NW', 'SE'] else Qt.CursorShape.CrossCursor
-                    self.setCursor(cursor)
-                    return
-            
-            if self.selection.contains(pos):
-                self.setCursor(Qt.CursorShape.OpenHandCursor)
-            else:
-                self.setCursor(Qt.CursorShape.CrossCursor)
-    
-    def mouseReleaseEvent(self, event):
-        """Handle mouse release events."""
-        if event.button() == Qt.MouseButton.LeftButton:
-            self.dragging = False
-            self.resizing = False
-            self.resize_edge = None
-            # Reset cursor if not over selection
-            pos = event.position().toPoint()
-            if not self.selection.contains(pos):
-                self.setCursor(Qt.CursorShape.CrossCursor)
-            else:
-                self.setCursor(Qt.CursorShape.OpenHandCursor)
-    
-    def confirm_selection(self):
-        """Confirm the selection and emit the region."""
-        if self.selection:
-            # Convert selection to screen coordinates
-            region = {
-                'x': self.window_bounds.x() + self.selection.x(),
-                'y': self.window_bounds.y() + self.selection.y(),
-                'width': self.selection.width(),
-                'height': self.selection.height()
-            }
-            self.regionSelected.emit(region)
-            self.close()
-    
-    def keyPressEvent(self, event):
-        """Handle key press events."""
-        if event.key() == Qt.Key.Key_Escape:
-            self.close()
-
 class MainWindow(QMainWindow):
     def __init__(self):
         """Initialize the application."""
@@ -354,14 +107,23 @@ class MainWindow(QMainWindow):
         self.last_image_file = self.temp_dir / "last_image.jpg"
         self.last_image_hash_file = self.output_dir / "last_image_hash.txt"
         
-        # Clear debug log and captured text
+        # Clear debug log, captured text, and dialogs
         if self.debug_log_file.exists():
             with open(self.debug_log_file, 'w') as f:
                 f.write('')  # Clear the file
         if self.captured_text_file.exists():
             with open(self.captured_text_file, 'w') as f:
                 f.write('')  # Clear the file
-        self.log_message("[INIT] Application started")
+                
+        # Clear dialogs directory
+        if self.dialogs_dir.exists():
+            for dialog_file in self.dialogs_dir.glob('dialog_*.txt'):
+                try:
+                    dialog_file.unlink()
+                except Exception as e:
+                    print(f"Failed to delete dialog file {dialog_file}: {e}")
+                    
+        self.log_message("[INIT] Application started - cleared logs and dialogs")
         
         # Initialize state
         self.region = None
@@ -374,15 +136,16 @@ class MainWindow(QMainWindow):
         self.capture_timer.timeout.connect(self.capture_screen)
         self.capture_timer.setInterval(2000)  # 2 seconds
         
-        # Initialize OpenAI client and chat monitor
+        # Initialize OpenAI client and dialog observer
         try:
             self.openai_client = OpenAIClient()
-            self.chat_monitor = ChatMonitor(str(self.output_dir))
-            self.log_message("[INIT] OpenAI client and chat monitor initialized")
+            self.dialog_observer = DialogObserver(str(self.output_dir))
+            self.dialog_observer.start()
+            self.log_message("[INIT] OpenAI client and dialog observer initialized")
         except Exception as e:
-            self.log_message(f"[ERROR] Failed to initialize OpenAI/chat components: {str(e)}")
+            self.log_message(f"[ERROR] Failed to initialize OpenAI components: {str(e)}")
             self.openai_client = None
-            self.chat_monitor = None
+            self.dialog_observer = None
         
         # Setup UI
         self.setup_ui()
@@ -443,6 +206,11 @@ class MainWindow(QMainWindow):
         self.text_log = QTextEdit()
         self.text_log.setReadOnly(True)
         tabs.addTab(self.text_log, "Captured Text")
+        
+        # Create dialog tab
+        self.dialog_log = QTextEdit()
+        self.dialog_log.setReadOnly(True)
+        tabs.addTab(self.dialog_log, "Dialog")
         
         layout.addWidget(tabs)
 
@@ -577,7 +345,7 @@ class MainWindow(QMainWindow):
                     img.save(self.last_image_file)
                     
                     # Extract text if OpenAI client is available
-                    if self.openai_client and self.chat_monitor:
+                    if self.openai_client:
                         loop = asyncio.get_event_loop()
                         loop.create_task(self.process_new_image())
                     
@@ -614,59 +382,102 @@ class MainWindow(QMainWindow):
             self.log_message(f"[ERROR] Error updating preview: {str(e)}")
     
     def update_displays(self):
-        """Update all display areas."""
+        """Update the display windows."""
         try:
-            # Update debug log
-            if self.debug_log_file.exists():
-                with open(self.debug_log_file, 'r') as f:
-                    self.debug_log.setText(
-                        f.read()
-                    )
-            
-            # Only update preview if we have a capture
-            if self.last_capture is not None:
-                self.update_preview(self.last_capture)
-            
-            # Update captured text
+            # Update captured text display
             if self.captured_text_file.exists():
                 with open(self.captured_text_file, 'r') as f:
-                    self.text_log.setText(
-                        f.read()
-                    )
+                    text = f.read()
+                    cursor = QTextCursor(self.text_log.document())
+                    cursor.movePosition(QTextCursor.MoveOperation.End)
+                    if text != self.text_log.toPlainText():
+                        self.text_log.setPlainText(text)
+                        cursor.movePosition(QTextCursor.MoveOperation.End)
+                        self.text_log.setTextCursor(cursor)
             
-            # Scroll logs to bottom
-            self.debug_log.moveCursor(QTextCursor.MoveOperation.End)
-            self.text_log.moveCursor(QTextCursor.MoveOperation.End)
-            
+            # Update debug log display
+            if self.debug_log_file.exists():
+                with open(self.debug_log_file, 'r') as f:
+                    text = f.read()
+                    cursor = QTextCursor(self.debug_log.document())
+                    cursor.movePosition(QTextCursor.MoveOperation.End)
+                    if text != self.debug_log.toPlainText():
+                        self.debug_log.setPlainText(text)
+                        cursor.movePosition(QTextCursor.MoveOperation.End)
+                        self.debug_log.setTextCursor(cursor)
+                        
+            # Update dialog display
+            if self.dialogs_dir.exists():
+                dialog_text = []
+                for dialog_file in sorted(self.dialogs_dir.glob('dialog_*.txt')):
+                    try:
+                        with open(dialog_file, 'r') as f:
+                            text = f.read().strip()
+                            if text:
+                                # Extract timestamp from filename
+                                timestamp = dialog_file.stem.split('_')[1:3]  # Get YYYYMMDD_HHMMSS
+                                ts = f"{timestamp[0][:4]}-{timestamp[0][4:6]}-{timestamp[0][6:]} {timestamp[1][:2]}:{timestamp[1][2:4]}:{timestamp[1][4:]}"
+                                dialog_text.append(f"[{ts}] {text}")
+                    except Exception as e:
+                        print(f"Error reading dialog file {dialog_file}: {e}")
+                
+                # Update dialog display if content has changed
+                dialog_content = '\n\n'.join(dialog_text)
+                cursor = QTextCursor(self.dialog_log.document())
+                cursor.movePosition(QTextCursor.MoveOperation.End)
+                if dialog_content != self.dialog_log.toPlainText():
+                    self.dialog_log.setPlainText(dialog_content)
+                    cursor.movePosition(QTextCursor.MoveOperation.End)
+                    self.dialog_log.setTextCursor(cursor)
+                        
+            # Only update preview if we have a capture
+            if self.last_capture is not None:
+                if isinstance(self.last_capture, QImage):
+                    qimage = self.last_capture
+                else:
+                    # Convert PIL Image to QImage
+                    img_data = self.last_capture.convert("RGBA").tobytes()
+                    qimage = QImage(img_data, 
+                                  self.last_capture.width,
+                                  self.last_capture.height,
+                                  QImage.Format.Format_RGBA8888)
+                
+                pixmap = QPixmap.fromImage(qimage)
+                scaled_pixmap = pixmap.scaled(
+                    self.image_preview.size(),
+                    Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation
+                )
+                self.image_preview.setPixmap(scaled_pixmap)
+                
         except Exception as e:
-            print(f"Error updating displays: {str(e)}")  # Use print to avoid recursive logging
+            print(f"Error updating displays: {str(e)}")
             
     async def process_new_image(self):
         """Process new image for text extraction."""
         try:
-            # Read image file
+            if not self.last_image_file.exists():
+                return
+                
+            # Read image data
             with open(self.last_image_file, 'rb') as f:
                 image_data = f.read()
-            
+                
             # Call OpenAI API
-            result = await self.openai_client.analyze_image(image_data)
+            text_lines = await self.openai_client.analyze_image(image_data)
             
-            if result and 'text' in result:
-                new_text = result['text']
-                if new_text:
-                    # Add timestamp header
-                    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                    self.chat_monitor.process_text(f"\n### {timestamp}")
-                    
-                    # Process each line through chat monitor
-                    for line in new_text:
-                        processed = self.chat_monitor.process_text(line)
-                        if processed:
-                            self.log_message(f"[INFO] New text captured: {processed}")
-                else:
-                    self.log_message("[INFO] No new text found in image")
+            if text_lines:
+                # Write to captured text file
+                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                with open(self.captured_text_file, 'a') as f:
+                    f.write(f"### {timestamp}\n")
+                    for line in text_lines:
+                        f.write(f"{line}\n")
+                    f.write("\n")
+                
+                self.log_message(f"[INFO] New text captured and processed")
             else:
-                self.log_message("[WARNING] Invalid or empty response from OpenAI")
+                self.log_message("[INFO] No new text found in image")
                 
         except Exception as e:
             self.log_message(f"[ERROR] Failed to process image: {str(e)}")
@@ -693,6 +504,11 @@ class MainWindow(QMainWindow):
             # Stop capture if running
             if self.capturing:
                 self.toggle_capture()
+                
+            # Stop dialog observer
+            if self.dialog_observer:
+                self.dialog_observer.stop()
+                
             event.accept()
         except Exception as e:
             self.log_message(f"[ERROR] Error during close: {str(e)}")

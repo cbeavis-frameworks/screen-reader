@@ -1,7 +1,11 @@
-import json
-from PyQt6.QtWidgets import QWidget, QPushButton
-from PyQt6.QtCore import Qt, QRect, QPoint, pyqtSignal
+import sys
+from pathlib import Path
+from PyQt6.QtWidgets import QWidget, QPushButton, QLabel
+from PyQt6.QtCore import Qt, QRect, pyqtSignal, QPoint
 from PyQt6.QtGui import QPainter, QColor, QPen
+
+# Add parent directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 class RegionSelector(QWidget):
     """Widget for selecting a region of the screen."""

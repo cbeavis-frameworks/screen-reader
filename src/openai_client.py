@@ -1,51 +1,68 @@
 import os
+import sys
+import base64
 import json
 from pathlib import Path
-import aiohttp
-import base64
-import openai
+from openai import OpenAI, AsyncOpenAI
+
+# Add parent directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 class OpenAIClient:
     def __init__(self):
-        """Initialize OpenAI client."""
+        """Initialize the OpenAI client."""
         # Get API key from environment
         self.api_key = os.getenv('OPENAI_API_KEY')
         if not self.api_key:
-            print("[ERROR] OPENAI_API_KEY not found in environment")
             raise ValueError("OPENAI_API_KEY environment variable not set")
             
-        # Configure OpenAI
-        openai.api_key = self.api_key
+        # Create sync and async clients
+        self.client = OpenAI(api_key=self.api_key)
+        self.async_client = AsyncOpenAI(api_key=self.api_key)
+        
+        # Set up paths
+        self.base_dir = Path(__file__).parent.parent
+        self.output_dir = self.base_dir / "output"
+        self.captured_text_file = self.output_dir / "captured_text.txt"
         
         # Load prompt template
         prompt_path = Path(__file__).parent / "prompts" / "analyze_image.txt"
         if not prompt_path.exists():
-            print(f"[ERROR] Prompt file not found: {prompt_path}")
             raise FileNotFoundError(f"Prompt file not found: {prompt_path}")
             
-        with open(prompt_path, 'r') as f:
-            self.prompt_template = f.read().strip()
+        with open(prompt_path) as f:
+            self.prompt_template = f.read()
+        print(f"[OPENAI] Loaded prompt template:\n{self.prompt_template}\n")
             
-    async def analyze_image(self, image_data: bytes) -> str:
-        """Analyze image using OpenAI vision model."""
+    def get_recent_text(self, max_lines=50):
+        """Get the most recent text from the captured text file."""
+        if not self.captured_text_file.exists():
+            return ""
+            
         try:
-            print("[OPENAI] Starting image analysis")
+            with open(self.captured_text_file, 'r') as f:
+                lines = f.readlines()
+                # Get last max_lines lines
+                recent_lines = lines[-max_lines:] if lines else []
+                return ''.join(recent_lines).strip()
+        except Exception as e:
+            print(f"[OPENAI] Error reading recent text: {e}")
+            return ""
             
+    async def analyze_image(self, image_data):
+        """Analyze an image using OpenAI's Vision API."""
+        try:
             # Convert image to base64
             base64_image = base64.b64encode(image_data).decode('utf-8')
             
-            # Get recent text from captured_text file
-            recent_text = ""
-            captured_text_file = Path(__file__).parent.parent / "output" / "captured_text.txt"
-            if captured_text_file.exists():
-                with open(captured_text_file, 'r', encoding='utf-8') as f:
-                    recent_text = f.read().strip()
+            # Get recent text
+            recent_text = self.get_recent_text()
+            print(f"\n[OPENAI] Recent text:\n{recent_text}\n")
             
-            # Replace placeholder in prompt
+            # Format prompt with recent text
             prompt = self.prompt_template.replace("RECENT_TEXT", recent_text)
-            print(f"[OPENAI] Using prompt:\n{prompt}\n")
             
-            # Create message with image
+            # Format the messages
             messages = [
                 {
                     "role": "user",
@@ -57,111 +74,53 @@ class OpenAIClient:
                         {
                             "type": "image_url",
                             "image_url": {
-                                "url": f"data:image/jpeg;base64,{base64_image}",
-                                "detail": "high"
+                                "url": f"data:image/jpeg;base64,{base64_image}"
                             }
                         }
                     ]
                 }
             ]
             
+            # Print the text content being sent (excluding the base64 image)
+            print("\n[OPENAI] Sending message to Vision API:")
+            print("Text content:", messages[0]["content"][0]["text"])
+            print("Image: <base64_encoded_image_data>")
+            
             # Call OpenAI API
             print("[OPENAI] Calling Vision API")
-            async with openai.AsyncOpenAI() as client:
-                response = await client.chat.completions.create(
-                    model="gpt-4o-mini",
-                    response_format={"type": "json_object"},
-                    messages=messages,
-                    temperature=0.5,
-                    max_tokens=500
-                )
+            response = await self.async_client.chat.completions.create(
+                model="gpt-4o-mini",
+                response_format={"type": "json_object"},
+                messages=messages,
+                max_tokens=500,
+                temperature=0.5
+            )
             
-            # Extract and return text
-            if response and hasattr(response, 'choices') and response.choices:
-                result = response.choices[0].message.content.strip()
-                print(f"[OPENAI] Raw response content: {result}")
-                
+            # Parse response
+            if response.choices and response.choices[0].message:
+                content = response.choices[0].message.content.strip()
+                print(f"\n[OPENAI] Raw response:\n{content}\n")
                 try:
-                    parsed_json = json.loads(result)
-                    print(f"[OPENAI] Parsed JSON: {parsed_json}")
-                    return parsed_json
+                    # Parse the JSON response
+                    parsed = json.loads(content)
+                    if isinstance(parsed, dict) and 'text' in parsed:
+                        text_lines = parsed['text']
+                        if isinstance(text_lines, list):
+                            print(f"[OPENAI] Found {len(text_lines)} lines of text")
+                            return text_lines
+                        else:
+                            print("[OPENAI] Text field is not a list")
+                            return None
+                    else:
+                        print("[OPENAI] Response missing text field")
+                        return None
                 except json.JSONDecodeError as e:
-                    print(f"[ERROR] Failed to parse OpenAI response as JSON: {str(e)}")
-                    print(f"[ERROR] Raw response: {result}")
+                    print(f"[OPENAI] Failed to parse JSON response: {e}")
                     return None
             else:
-                print(f"[ERROR] No content in OpenAI response. Response: {response}")
+                print("[OPENAI] Empty response received")
                 return None
                 
         except Exception as e:
-            print(f"[ERROR] OpenAI API error: {str(e)}")
+            print(f"[OPENAI] Error analyzing image: {str(e)}")
             return None
-
-    async def summarize_text(self, prompt: str) -> str:
-        """Summarize text using OpenAI's API."""
-        try:
-            # Prepare request payload
-            payload = {
-                "model": "gpt-4o",
-                "response_format": { "type": "json_object" },
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
-                ],
-                "max_tokens": 500,
-                "temperature": 0.5
-            }
-            
-            print(f"\nSummarizer using prompt:\n{prompt}\n")
-            
-            # Prepare headers
-            headers = {
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {self.api_key}"
-            }
-            
-            # Make request
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    "https://api.openai.com/v1/chat/completions",
-                    headers=headers,
-                    json=payload
-                ) as response:
-                    
-                    if response.status == 200:
-                        result = await response.json()
-                        return result['choices'][0]['message']['content']
-                    else:
-                        error_text = await response.text()
-                        print(f"OpenAI API error: {error_text}")
-                        return None
-                        
-        except openai.APIError as e:
-            print(f"[ERROR] OpenAI API Error: {str(e)}")
-        except openai.APIConnectionError as e:
-            print(f"[ERROR] OpenAI Connection Error: {str(e)}")
-        except openai.APITimeoutError as e:
-            print(f"[ERROR] OpenAI Timeout Error: {str(e)}")
-        except openai.AuthenticationError as e:
-            print(f"[ERROR] OpenAI Authentication Error: {str(e)}")
-        except openai.BadRequestError as e:
-            print(f"[ERROR] OpenAI Bad Request Error: {str(e)}")
-        except openai.ConflictError as e:
-            print(f"[ERROR] OpenAI Conflict Error: {str(e)}")
-        except openai.InternalServerError as e:
-            print(f"[ERROR] OpenAI Server Error: {str(e)}")
-        except openai.NotFoundError as e:
-            print(f"[ERROR] OpenAI Not Found Error: {str(e)}")
-        except openai.PermissionDeniedError as e:
-            print(f"[ERROR] OpenAI Permission Error: {str(e)}")
-        except openai.RateLimitError as e:
-            print(f"[ERROR] OpenAI Rate Limit Error: {str(e)}")
-        except Exception as e:
-            print(f"[ERROR] Unexpected error in summarize_text: {str(e)}")
-            print(f"Error type: {type(e)}")
-            import traceback
-            print(f"Traceback: {traceback.format_exc()}")
-            
-        return None
