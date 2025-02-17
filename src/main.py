@@ -22,7 +22,7 @@ from PyQt6.QtCore import (
     QTimer,
     pyqtSignal
 )
-from PyQt6.QtGui import QPixmap, QTextCursor, QPainter, QColor, QPen
+from PyQt6.QtGui import QPixmap, QTextCursor, QPainter, QColor, QPen, QImage
 from dotenv import load_dotenv
 import AppKit
 import Quartz
@@ -362,10 +362,12 @@ class MainWindow(QMainWindow):
         self.region = None
         self.relative_region = None
         self.region_selector = None
-        self.is_capturing = False
-        self.capture_timer = None
-        self.is_processing_image = False
-        self.last_image = None
+        self.capturing = False
+        self.last_capture = None
+        self.last_image_hash = None
+        self.capture_timer = QTimer()
+        self.capture_timer.timeout.connect(self.capture_screen)
+        self.capture_timer.setInterval(2000)  # 2 seconds
         
         # Setup UI
         self.setup_ui()
@@ -457,58 +459,89 @@ class MainWindow(QMainWindow):
 
     def toggle_capture(self):
         """Toggle screen capture on/off."""
-        if not self.is_capturing:
-            self.start_capture()
-            self.capture_button.setText("Stop Capture")
-        else:
-            self.stop_capture()
-            self.capture_button.setText("Start Capture")
-
-    def process_image(self, image):
-        """Process captured image."""
-        if self.is_processing_image:
-            return
-                
-        self.is_processing_image = True
         try:
-            # Convert image to bytes
-            img_byte_arr = io.BytesIO()
-            image.save(img_byte_arr, format='PNG')
-            img_byte_arr = img_byte_arr.getvalue()
-            
-            # Calculate hash
-            new_hash = hashlib.md5(img_byte_arr).hexdigest()
-            
-            # Save last capture for preview
-            image.save(self.last_capture_file)
-            self.update_image_preview()
-            
-            # Check if image has changed
-            if not hasattr(self, 'last_hash') or new_hash != self.last_hash:
-                self.last_hash = new_hash
-                self.log_message(f"[CAPTURE] New image detected (hash: {new_hash[:8]})")
+            if not self.capturing:
+                self.capturing = True
+                self.capture_button.setText("Stop Capture")
+                self.capture_timer.start()
+                self.log_message("[INFO] Started capture")
+            else:
+                self.capturing = False
+                self.capture_button.setText("Start Capture")
+                self.capture_timer.stop()
+                self.log_message("[INFO] Stopped capture")
                 
-                # Save the image
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                capture_file = self.captures_dir / f"capture_{timestamp}.jpg"
-                image.save(capture_file)
+        except Exception as e:
+            self.log_message(f"[ERROR] Error toggling capture: {str(e)}")
+    
+    def capture_screen(self):
+        """Capture the selected region of the screen."""
+        try:
+            if not self.region:
+                self.log_message("[ERROR] No region selected")
+                return
+            
+            # Create screenshot
+            with mss.mss() as sct:
+                # Get region coordinates
+                monitor = {
+                    "top": self.region['y'],
+                    "left": self.region['x'],
+                    "width": self.region['width'],
+                    "height": self.region['height']
+                }
                 
-                # Disabled OpenAI processing for now
-                # self.process_text_with_openai(image)
-        finally:
-            self.is_processing_image = False
-
-    def update_image_preview(self):
-        """Update the image preview tab."""
-        if self.last_capture_file.exists():
-            pixmap = QPixmap(str(self.last_capture_file))
+                # Capture screen region
+                screenshot = sct.grab(monitor)
+                
+                # Convert to PIL Image
+                img = Image.frombytes("RGB", screenshot.size, screenshot.rgb)
+                
+                # Calculate image hash
+                current_hash = hashlib.md5(img.tobytes()).hexdigest()
+                
+                # Check if image has changed
+                if current_hash != self.last_image_hash:
+                    self.log_message("[INFO] Change detected in captured region")
+                    
+                    # Update state
+                    self.last_capture = img
+                    self.last_image_hash = current_hash
+                    
+                    # Update preview
+                    self.update_preview(img)
+                    
+                    # Process the new image (placeholder for future OCR)
+                    self.log_message("[INFO] New image captured and saved")
+                else:
+                    self.log_message("[INFO] No change detected")
+                
+        except Exception as e:
+            self.log_message(f"[ERROR] Error capturing screen: {str(e)}")
+    
+    def update_preview(self, img):
+        """Update the image preview with the latest capture."""
+        try:
+            # Convert PIL image to QPixmap
+            img_qt = img.convert("RGBA")
+            data = img_qt.tobytes("raw", "RGBA")
+            qimg = QImage(data, img_qt.size[0], img_qt.size[1], QImage.Format.Format_RGBA8888)
+            pixmap = QPixmap.fromImage(qimg)
+            
+            # Scale pixmap to fit preview while maintaining aspect ratio
             scaled_pixmap = pixmap.scaled(
                 self.image_preview.size(),
                 Qt.AspectRatioMode.KeepAspectRatio,
                 Qt.TransformationMode.SmoothTransformation
             )
+            
+            # Update preview
             self.image_preview.setPixmap(scaled_pixmap)
-
+            self.tab_widget.setCurrentWidget(self.image_preview)
+            
+        except Exception as e:
+            self.log_message(f"[ERROR] Error updating preview: {str(e)}")
+    
     def update_displays(self):
         """Update all display areas."""
         try:
@@ -524,7 +557,7 @@ class MainWindow(QMainWindow):
                         )
             
             # Update image preview
-            self.update_image_preview()
+            self.update_preview(self.last_capture)
             
             # Update captured text
             if self.captured_text_file.exists():
@@ -540,28 +573,6 @@ class MainWindow(QMainWindow):
         except Exception as e:
             print(f"Error updating displays: {str(e)}")  # Use print to avoid recursive logging
             
-    def capture_screen(self):
-        """Capture the selected region of the screen."""
-        if not self.region:
-            self.log_message("[ERROR] No region selected")
-            return
-        
-        try:
-            with mss() as sct:
-                monitor = {
-                    "top": self.region["y"],
-                    "left": self.region["x"],
-                    "width": self.region["width"],
-                    "height": self.region["height"]
-                }
-                
-                screenshot = sct.grab(monitor)
-                image = Image.frombytes("RGB", screenshot.size, screenshot.rgb)
-                self.process_image(image)
-                
-        except Exception as e:
-            self.log_message(f"[ERROR] Screen capture failed: {str(e)}")
-
     def check_windsurf_windows(self):
         """Check for Windsurf windows."""
         try:
@@ -733,54 +744,6 @@ class MainWindow(QMainWindow):
         except Exception as e:
             self.log_message(f"[ERROR] Error loading region: {str(e)}")
         return False
-
-    def start_capture(self):
-        """Start screen capture."""
-        try:
-            if not self.region:
-                self.log_message("[ERROR] No region selected")
-                return
-                
-            if not self.is_capturing:
-                self.is_capturing = True
-                self.capture_timer = QTimer(self)
-                self.capture_timer.timeout.connect(self.capture_screen)
-                self.capture_timer.start(1000)  # Capture every second
-                
-                self.capture_button.setText("Stop Capture")
-                self.region_button.setEnabled(False)
-                self.log_message("[CAPTURE] Started capture")
-                
-        except Exception as e:
-            self.log_message(f"[ERROR] Failed to start capture: {str(e)}")
-            
-    def stop_capture(self):
-        """Stop screen capture."""
-        try:
-            if self.is_capturing:
-                self.is_capturing = False
-                if self.capture_timer:
-                    self.capture_timer.stop()
-                    
-                self.capture_button.setText("Start Capture")
-                self.region_button.setEnabled(True)
-                self.log_message("[CAPTURE] Stopped capture")
-                
-        except Exception as e:
-            self.log_message(f"[ERROR] Failed to stop capture: {str(e)}")
-            
-    def toggle_always_on_top(self):
-        """Toggle always on top."""
-        try:
-            if self.windowFlags() & Qt.WindowType.WindowStaysOnTopHint:
-                self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowStaysOnTopHint)
-                self.always_top_button.setText("Toggle Always On Top")
-            else:
-                self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
-                self.always_top_button.setText("Toggle Always On Top (On)")
-            self.show()  # Need to show window again after changing flags
-        except Exception as e:
-            self.log_message(f"[ERROR] Error toggling always on top: {str(e)}")
 
     def log_message(self, message: str):
         """Log a message to the debug log file."""
