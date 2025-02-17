@@ -18,12 +18,16 @@ Instructions:
    - Create an extremely concise summary of the new information
    - Focus only on the most important updates or changes
    - Use simple, friendly, conversational language
-3. If there is no new information to summarize:
+3. If there is no new information to summarize or the information isn't particularly important:
    - Return an empty array
 
-Please try not to give me dialog lines that are already summarized, I am looking for new information
+Please try not to give me dialog lines that are already summarized, I am looking for new information that is relevant.
 
 Dialog lines should be in the first person and the tone is that of a human talking to me, summarizing what the IDE is saying but as if they are the ones performing the actions or asking the questions.
+
+Remember, we are converting this text to speech, so brevity is important.
+
+Do not repeat information we have already summarized.
 
 Please respond in the following JSON format:
 {"dialog": ["", "", ..]}

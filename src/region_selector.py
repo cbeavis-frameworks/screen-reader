@@ -1,6 +1,6 @@
 import sys
 from pathlib import Path
-from PyQt6.QtWidgets import QWidget, QPushButton, QLabel
+from PyQt6.QtWidgets import QWidget, QPushButton, QLabel, QApplication
 from PyQt6.QtCore import Qt, QRect, pyqtSignal, QPoint
 from PyQt6.QtGui import QPainter, QColor, QPen
 
@@ -16,9 +16,13 @@ class RegionSelector(QWidget):
         """Initialize the region selector."""
         super().__init__()
         
+        # Store screen geometry
+        self.screen_geometry = screen_geometry
+        
         # Set window flags for full screen overlay
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.setCursor(Qt.CursorShape.ArrowCursor)  # Default cursor
         
         # Set geometry to cover entire screen
         self.setGeometry(screen_geometry)
@@ -52,7 +56,7 @@ class RegionSelector(QWidget):
                 background-color: #4CAF50;
                 color: white;
                 border: none;
-                padding: 5px 10px;
+                padding: 5px;
                 border-radius: 3px;
             }
             QPushButton:hover {
@@ -91,42 +95,34 @@ class RegionSelector(QWidget):
         painter = QPainter(self)
         
         # Draw semi-transparent overlay
-        overlay_color = QColor(0, 0, 0, 128)
-        painter.fillRect(self.rect(), overlay_color)
+        painter.fillRect(self.rect(), QColor(0, 0, 0, 32))  # Very light black background
         
-        # Clear selection area
-        painter.eraseRect(self.selection)
+        # Draw semi-transparent white fill for selected area
+        painter.fillRect(self.selection, QColor(255, 255, 255, 16))  # Very light white fill
         
-        # Draw selection border
-        pen = QPen(QColor('#4CAF50'))  # Green border
-        pen.setWidth(2)
+        # Draw thin green border
+        pen = QPen(QColor(0, 255, 0))  # Green color
+        pen.setWidth(1)  # 1 pixel width
         painter.setPen(pen)
         painter.drawRect(self.selection)
         
-        # Draw resize handles
-        handle_color = QColor('#4CAF50')  # Green handles
-        painter.fillRect(self.get_resize_handle('top-left'), handle_color)
-        painter.fillRect(self.get_resize_handle('top-right'), handle_color)
-        painter.fillRect(self.get_resize_handle('bottom-left'), handle_color)
-        painter.fillRect(self.get_resize_handle('bottom-right'), handle_color)
-        painter.fillRect(self.get_resize_handle('top'), handle_color)
-        painter.fillRect(self.get_resize_handle('bottom'), handle_color)
-        painter.fillRect(self.get_resize_handle('left'), handle_color)
-        painter.fillRect(self.get_resize_handle('right'), handle_color)
+        # Draw only corner resize handles
+        handle_color = QColor(0, 255, 0, 128)  # Semi-transparent green handles
+        for edge in ['top-left', 'top-right', 'bottom-left', 'bottom-right']:
+            handle = self.get_resize_handle(edge)
+            if handle:
+                painter.fillRect(handle, handle_color)
         
     def update_confirm_button_position(self):
         """Update the position of the confirm button to stay within the selection."""
         button_width = 80
         button_height = 30
-        margin = 10
+        button_x = self.selection.right() - button_width - 10
+        button_y = self.selection.bottom() + 10
         
-        # Position button at bottom-right of selection
-        button_x = self.selection.right() - button_width - margin
-        button_y = self.selection.bottom() - button_height - margin
-        
-        # Keep button within window bounds
-        button_x = max(margin, min(button_x, self.width() - button_width - margin))
-        button_y = max(margin, min(button_y, self.height() - button_height - margin))
+        # Ensure button stays within screen bounds
+        if button_y + button_height > self.height():
+            button_y = self.selection.top() - button_height - 10
         
         self.confirm_button.setGeometry(button_x, button_y, button_width, button_height)
         
@@ -134,9 +130,8 @@ class RegionSelector(QWidget):
         """Handle mouse press events."""
         pos = event.pos()
         
-        # Check resize handles
-        for edge in ['top-left', 'top-right', 'bottom-left', 'bottom-right',
-                    'top', 'bottom', 'left', 'right']:
+        # Check corner resize handles
+        for edge in ['top-left', 'top-right', 'bottom-left', 'bottom-right']:
             handle = self.get_resize_handle(edge)
             if handle and handle.contains(pos):
                 self.resizing = True
@@ -148,7 +143,8 @@ class RegionSelector(QWidget):
         if self.selection.contains(pos):
             self.dragging = True
             self.drag_start = pos
-            
+            self.setCursor(Qt.CursorShape.ClosedHandCursor)  # Closed hand while dragging
+                
     def mouseMoveEvent(self, event):
         """Handle mouse move events."""
         if self.resizing:
@@ -186,13 +182,40 @@ class RegionSelector(QWidget):
                 self.drag_start = pos
                 self.update_confirm_button_position()
                 self.update()
+        else:
+            # Update cursor based on mouse position
+            pos = event.pos()
+            
+            # Check corner resize handles first
+            for edge in ['top-left', 'top-right', 'bottom-left', 'bottom-right']:
+                handle = self.get_resize_handle(edge)
+                if handle and handle.contains(pos):
+                    if edge in ['top-left', 'bottom-right']:
+                        self.setCursor(Qt.CursorShape.SizeFDiagCursor)
+                    else:  # top-right, bottom-left
+                        self.setCursor(Qt.CursorShape.SizeBDiagCursor)
+                    return
+            
+            # Then check if in selection area
+            if self.selection.contains(pos):
+                self.setCursor(Qt.CursorShape.PointingHandCursor)  # Hand cursor for dragging
+            else:
+                self.setCursor(Qt.CursorShape.ArrowCursor)  # Default pointer cursor
                 
     def mouseReleaseEvent(self, event):
         """Handle mouse release events."""
+        was_dragging = self.dragging
         self.dragging = False
         self.resizing = False
         self.resize_edge = None
         
+        # Reset cursor based on position
+        pos = event.pos()
+        if was_dragging and self.selection.contains(pos):
+            self.setCursor(Qt.CursorShape.PointingHandCursor)  # Back to pointing hand
+        else:
+            self.setCursor(Qt.CursorShape.ArrowCursor)  # Default pointer cursor
+            
     def confirm_selection(self):
         """Confirm the selection and emit the region."""
         try:

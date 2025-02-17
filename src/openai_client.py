@@ -57,7 +57,6 @@ class OpenAIClient:
             
             # Get recent text
             recent_text = self.get_recent_text()
-            print(f"\n[OPENAI] Recent text:\n{recent_text}\n")
             
             # Format prompt with recent text
             prompt = self.prompt_template.replace("RECENT_TEXT", recent_text)
@@ -81,11 +80,6 @@ class OpenAIClient:
                 }
             ]
             
-            # Print the text content being sent (excluding the base64 image)
-            print("\n[OPENAI] Sending message to Vision API:")
-            print("Text content:", messages[0]["content"][0]["text"])
-            print("Image: <base64_encoded_image_data>")
-            
             # Call OpenAI API
             print("[OPENAI] Calling Vision API")
             response = await self.async_client.chat.completions.create(
@@ -99,7 +93,6 @@ class OpenAIClient:
             # Parse response
             if response.choices and response.choices[0].message:
                 content = response.choices[0].message.content.strip()
-                print(f"\n[OPENAI] Raw response:\n{content}\n")
                 try:
                     # Parse the JSON response
                     parsed = json.loads(content)

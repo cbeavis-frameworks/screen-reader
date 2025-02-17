@@ -4,6 +4,8 @@ The IDE chat bot provides a few different types of messages, some are to update 
 
 Text that is related to actions/processes the IDE is undertaking are normally in boxes with the text directed at me being outside the boxes.
 
+Do not capture text that appears to be contained in boxes, only capture text that is directly outside of any boxes.
+
 Messages from me are in a greybox that is right aligned with slightly smaller text, I do not want you to extract my messages to the IDE.
 
 I will provide an image that has just been taken of the chat window.

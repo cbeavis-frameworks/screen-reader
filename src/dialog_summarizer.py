@@ -57,9 +57,16 @@ class DialogSummarizer:
             prompt = prompt_template.replace('CAPTURED_TEXT', text)
             prompt = prompt.replace('PREVIOUS_DIALOGS', '\n'.join(previous_dialogs[-5:]))  # Only use last 5 dialogs
             
+            print(f"\n[DIALOG] Previous dialogs ({len(previous_dialogs)}):")
+            for i, dialog in enumerate(previous_dialogs):
+                print(f"\nDialog {i+1}:\n{dialog}")
+            
+            print(f"\n[DIALOG] Sending prompt to OpenAI:")
+            print(prompt)
+            
             # Call OpenAI API
             response = self.client.chat.completions.create(
-                model="gpt-4o-mini",
+                model="gpt-4o",
                 response_format={"type": "json_object"},
                 messages=[
                     {"role": "user", "content": prompt}
@@ -76,6 +83,8 @@ class DialogSummarizer:
                 print(f"Error parsing OpenAI response as JSON: {response_text}")
                 return None
             
+            print(f"\n[DIALOG] Raw response:\n{response_text}\n")
+            
             # Get new dialog lines
             new_dialogs = response_data.get('dialog', [])
             if not new_dialogs:
@@ -88,6 +97,7 @@ class DialogSummarizer:
                 with open(dialog_file, 'w') as f:
                     f.write(dialog)
                 
+            print(f"[DIALOG] Saved dialog to {dialog_file.name}")
             return new_dialogs
             
         except Exception as e:

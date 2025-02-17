@@ -131,10 +131,10 @@ class MainWindow(QMainWindow):
         self.capturing = False
         self.last_capture = None
         self.last_image_hash = None
-        self.hash_threshold = 5  # Threshold for image difference (adjust as needed)
+        self.hash_threshold = 2  # Lower threshold for more sensitive image comparison
         self.capture_timer = QTimer()
         self.capture_timer.timeout.connect(self.capture_screen)
-        self.capture_timer.setInterval(2000)  # 2 seconds
+        self.capture_timer.setInterval(1000)  # 2 seconds
         
         # Initialize OpenAI client and dialog observer
         try:
