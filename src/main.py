@@ -67,7 +67,8 @@ def get_windsurf_windows(app_pid):
                             'y': int(bounds.get('Y', 0)),
                             'width': int(bounds.get('Width', 0)),
                             'height': int(bounds.get('Height', 0))
-                        }
+                        },
+                        'id': window.get(Quartz.kCGWindowNumber, 0)
                     })
         except Exception as e:
             print(f"Error getting window info: {e}")
@@ -475,27 +476,90 @@ class MainWindow(QMainWindow):
             self.log_message(f"[ERROR] Error toggling capture: {str(e)}")
     
     def capture_screen(self):
-        """Capture the selected region of the screen."""
+        """Capture the selected region of the window."""
         try:
-            if not self.region:
-                self.log_message("[ERROR] No region selected")
+            if not self.region or not self.selected_window:
+                self.log_message("[ERROR] No region or window selected")
                 return
             
-            # Create screenshot using mss
-            with mss.mss() as sct:
-                # Get region coordinates
-                monitor = {
-                    "top": self.region['y'],
-                    "left": self.region['x'],
-                    "width": self.region['width'],
-                    "height": self.region['height']
-                }
-                
-                # Capture screen region
-                screenshot = sct.grab(monitor)
-                
+            # Get window info
+            window_id = self.selected_window['id']
+            window_bounds = self.selected_window['bounds']
+            
+            # Create CGImage of the window
+            window_image = Quartz.CGWindowListCreateImage(
+                Quartz.CGRectNull,
+                Quartz.kCGWindowListOptionIncludingWindow,
+                window_id,
+                Quartz.kCGWindowImageBoundsIgnoreFraming
+            )
+            
+            if window_image:
                 # Convert to PIL Image
-                img = Image.frombytes("RGB", screenshot.size, screenshot.rgb)
+                width = Quartz.CGImageGetWidth(window_image)
+                height = Quartz.CGImageGetHeight(window_image)
+                
+                # Create a bitmap context
+                context = Quartz.CGBitmapContextCreate(
+                    None,
+                    width,
+                    height,
+                    8,  # bits per component
+                    0,  # bytes per row (0 = automatic)
+                    Quartz.CGColorSpaceCreateDeviceRGB(),
+                    Quartz.kCGImageAlphaPremultipliedFirst | Quartz.kCGBitmapByteOrder32Little
+                )
+                
+                # Draw the image in the context
+                Quartz.CGContextDrawImage(
+                    context,
+                    Quartz.CGRectMake(0, 0, width, height),
+                    window_image
+                )
+                
+                # Get the raw image data
+                dataProvider = Quartz.CGDataProviderCreateWithData(
+                    None,
+                    Quartz.CGBitmapContextGetData(context),
+                    width * height * 4,
+                    None
+                )
+                
+                # Create image from the data
+                new_image = Quartz.CGImageCreate(
+                    width,
+                    height,
+                    8,  # bits per component
+                    32,  # bits per pixel
+                    width * 4,  # bytes per row
+                    Quartz.CGColorSpaceCreateDeviceRGB(),
+                    Quartz.kCGImageAlphaPremultipliedFirst | Quartz.kCGBitmapByteOrder32Little,
+                    dataProvider,
+                    None,
+                    True,
+                    Quartz.kCGRenderingIntentDefault
+                )
+                
+                # Convert CGImage to PIL Image
+                image_data = Quartz.CGDataProviderCopyData(Quartz.CGImageGetDataProvider(new_image))
+                img = Image.frombytes(
+                    "RGBA",
+                    (width, height),
+                    image_data,
+                    "raw",
+                    "BGRA"
+                )
+                
+                # Crop to selected region
+                region_x = self.region['x'] - window_bounds['x']
+                region_y = self.region['y'] - window_bounds['y']
+                region_box = (
+                    region_x,
+                    region_y,
+                    region_x + self.region['width'],
+                    region_y + self.region['height']
+                )
+                img = img.crop(region_box)
                 
                 # Calculate image hash
                 current_hash = hashlib.md5(img.tobytes()).hexdigest()
@@ -515,6 +579,8 @@ class MainWindow(QMainWindow):
                     self.log_message("[INFO] New image captured and saved")
                 else:
                     self.log_message("[INFO] No change detected")
+            else:
+                self.log_message("[ERROR] Failed to capture window image")
                 
         except Exception as e:
             self.log_message(f"[ERROR] Error capturing screen: {str(e)}")
