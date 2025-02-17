@@ -6,8 +6,6 @@ Text that is related to actions/processes the IDE is undertaking are normally in
 
 Do not capture text that appears to be contained in boxes, only capture text that is directly outside of any boxes.
 
-Messages from me are in a greybox that is right aligned with slightly smaller text, I do not want you to extract my messages to the IDE.
-
 I will provide an image that has just been taken of the chat window.
 
 I have previously extracted this text from the window:
@@ -18,11 +16,13 @@ RECENT_TEXT
 
 ```
 
-Please look at the image I have provided and extract any messages from the IDE that are not from me and not in an action box, I am looking for text that the IDE wants to say to me.
+Please look at the image I have provided and extract any messages from the IDE that are not inside boxes.
 
 Avoid repeating text we have already extracted (i.e present in the recent text), I am only looking for new text in this image that we haven't already captured.
 
-Please make sure you get all the text the IDE is saying to me and keep numbering and bullet points consistent with the image.
+Please make sure you get all the text the IDE is saying to me that is not in a box and keep numbering and bullet points consistent with the image.
+
+Avoid the smaller grey text out side boxes that says "Generating" or "Done", these are just a confirmation that the IDE is doing its job.
 
 Please respond in the following JSON format:
 
