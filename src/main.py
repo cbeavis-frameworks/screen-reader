@@ -535,9 +535,8 @@ class MainWindow(QMainWindow):
                 Qt.TransformationMode.SmoothTransformation
             )
             
-            # Update preview
+            # Update preview without switching tabs
             self.image_preview.setPixmap(scaled_pixmap)
-            self.tab_widget.setCurrentWidget(self.image_preview)
             
         except Exception as e:
             self.log_message(f"[ERROR] Error updating preview: {str(e)}")
