@@ -643,21 +643,27 @@ class MainWindow(QMainWindow):
             if self.selected_window:
                 self.log_message("[INFO] Opening region selector")
                 
-                # Create region selector with current region
-                initial_region = QRect(
-                    self.region['x'],
-                    self.region['y'],
-                    self.region['width'],
-                    self.region['height']
-                ) if self.region else None
+                # Create window bounds
+                window_bounds = QRect(
+                    self.selected_window['bounds']['x'],
+                    self.selected_window['bounds']['y'],
+                    self.selected_window['bounds']['width'],
+                    self.selected_window['bounds']['height']
+                )
+                
+                # Convert saved region to window-relative coordinates
+                initial_region = None
+                if self.region:
+                    initial_region = QRect(
+                        self.region['x'] - window_bounds.x(),
+                        self.region['y'] - window_bounds.y(),
+                        self.region['width'],
+                        self.region['height']
+                    )
+                    self.log_message(f"[REGION] Loading region at: ({initial_region.x()}, {initial_region.y()}, {initial_region.width()}, {initial_region.height()})")
                 
                 self.region_selector = RegionSelector(
-                    window_bounds=QRect(
-                        self.selected_window['bounds']['x'],
-                        self.selected_window['bounds']['y'],
-                        self.selected_window['bounds']['width'],
-                        self.selected_window['bounds']['height']
-                    ),
+                    window_bounds=window_bounds,
                     region_file=self.region_file,
                     initial_region=initial_region
                 )
@@ -668,11 +674,13 @@ class MainWindow(QMainWindow):
                 
         except Exception as e:
             self.log_message(f"[ERROR] Error opening region selector: {str(e)}")
-            
+
     def on_region_selected(self, region):
         """Handle region selection."""
         try:
             if region:
+                self.log_message(f"[REGION] Selected region: {json.dumps(region, indent=2)}")
+                
                 # Calculate relative region for persistence
                 relative_region = {
                     'x': region['x'] - self.selected_window['bounds']['x'],
@@ -689,7 +697,6 @@ class MainWindow(QMainWindow):
                 self.relative_region = relative_region
                 self.capture_button.setEnabled(True)
                 
-                self.log_message(f"[REGION] Selected region: {json.dumps(region, indent=2)}")
                 self.log_message(f"[REGION] Saved relative region: {json.dumps(relative_region, indent=2)}")
                 self.log_message("[INFO] Ready to capture")
                 
