@@ -160,7 +160,7 @@ class RegionSelector(QWidget):
     def mousePressEvent(self, event):
         """Handle mouse press events."""
         if event.button() == Qt.MouseButton.LeftButton:
-            pos = event.position()
+            pos = event.position().toPoint()  # Convert to QPoint
             handle_size = 10
             
             # Check if clicking on resize handles
@@ -187,29 +187,29 @@ class RegionSelector(QWidget):
                     return
             
             # Check if clicking inside selection for dragging
-            if self.selection and self.selection.contains(int(pos.x()), int(pos.y())):
+            if self.selection and self.selection.contains(pos):
                 self.dragging = True
                 self.drag_start = pos - self.selection.topLeft()
                 self.setCursor(Qt.CursorShape.ClosedHandCursor)
-            
+    
     def mouseMoveEvent(self, event):
         """Handle mouse move events."""
-        pos = event.position()
+        pos = event.position().toPoint()  # Convert to QPoint
         
         if self.resizing:
             if self.resize_edge == 'top-left':
-                self.selection.setTopLeft(pos.toPoint())
+                self.selection.setTopLeft(pos)
             elif self.resize_edge == 'top-right':
-                self.selection.setTopRight(pos.toPoint())
+                self.selection.setTopRight(pos)
             elif self.resize_edge == 'bottom-left':
-                self.selection.setBottomLeft(pos.toPoint())
+                self.selection.setBottomLeft(pos)
             elif self.resize_edge == 'bottom-right':
-                self.selection.setBottomRight(pos.toPoint())
+                self.selection.setBottomRight(pos)
             self.update()
             
         elif self.dragging:
             new_pos = pos - self.drag_start
-            self.selection.moveTopLeft(new_pos.toPoint())
+            self.selection.moveTopLeft(new_pos)
             self.update()
             
         else:
@@ -230,7 +230,7 @@ class RegionSelector(QWidget):
                       abs(pos.y() - self.selection.bottom()) < handle_size):
                     self.setCursor(Qt.CursorShape.SizeFDiagCursor)
                 # Inside selection
-                elif self.selection.contains(int(pos.x()), int(pos.y())):
+                elif self.selection.contains(pos):
                     self.setCursor(Qt.CursorShape.OpenHandCursor)
                 else:
                     self.setCursor(Qt.CursorShape.CrossCursor)
@@ -242,7 +242,8 @@ class RegionSelector(QWidget):
             self.resizing = False
             self.resize_edge = None
             # Reset cursor if not over selection
-            if not self.selection.contains(event.position().toPoint()):
+            pos = event.position().toPoint()  # Convert to QPoint
+            if not self.selection.contains(pos):
                 self.setCursor(Qt.CursorShape.CrossCursor)
             else:
                 self.setCursor(Qt.CursorShape.OpenHandCursor)
