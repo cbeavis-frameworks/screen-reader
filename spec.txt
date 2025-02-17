@@ -1,93 +1,81 @@
 Screen Reader Application Specification
 ===================================
 
-Overview
---------
-The Screen Reader is a desktop application designed to capture and monitor specific regions of windows, particularly focusing on the Windsurf IDE. It provides real-time screen capture, image comparison, text extraction using OpenAI's Vision API, and a user interface for managing capture regions and viewing results.
+A Python application for capturing and processing text from a selected region of the screen.
 
 Core Features
 ------------
-1. Window Selection
-   - List and select active windows
-   - Focus on Windsurf application window
-   - Always-on-top window option
-   - Window bounds tracking
+1. Screen Region Selection
+   - Select any region of the screen using a visual selector
+   - Resize and move selection with intuitive handles
+   - Save and load previous selection
+   - Screen-wide coordinates for accurate region tracking
 
-2. Region Selection
-   - Interactive region selection interface
-   - Draggable and resizable selection box
-   - Region coordinate persistence
-   - Visual feedback during selection
+2. Text Capture
+   - Capture screen region at regular intervals
+   - Extract text using OpenAI Vision API
+   - Process text for meaningful changes
+   - Clear capture history on launch
 
-3. Screen Capture
-   - Capture specific window regions
-   - Periodic capture (2-second intervals)
-   - Perceptual image comparison
-   - Ignore minor UI changes (loading icons, etc.)
-   - Preview of captured region
-
-4. Text Extraction
-   - OpenAI Vision API integration
-   - Intelligent text deduplication
-   - Timestamp-based logging
-   - Context-aware text processing
-   - Automatic text formatting
-
-5. User Interface
-   - Tab-based interface (Preview/Debug)
-   - Real-time image preview
-   - Debug logging system
-   - Start/Stop capture controls
-   - Window selection dropdown
-   - Captured text display
+3. Dialog Monitoring
+   - Track and process conversation-like text
+   - Format and timestamp dialog entries
+   - Maintain conversation context
 
 Technical Components
 ------------------
-1. Image Processing
-   - MSS for screen capture
-   - PIL for image manipulation
-   - ImageHash for perceptual comparison
-   - Configurable similarity threshold
+1. RegionSelector (src/region_selector.py)
+   - Visual interface for selecting screen regions
+   - Drag and resize functionality
+   - Screen coordinate handling
+   - Region persistence
 
-2. Window Management
-   - PyQt6 for GUI framework
-   - Quartz integration for macOS windows
-   - Coordinate space conversion
-   - Window state tracking
+2. OpenAI Integration (src/openai_client.py)
+   - Vision API for text extraction
+   - Error handling and rate limiting
+   - Response processing
 
-3. Text Processing
-   - OpenAI Vision API for text extraction
-   - Asynchronous API integration
-   - Text deduplication system
-   - Context-aware processing
-   - Timestamp-based organization
+3. Dialog Processing (src/dialog_summarizer.py)
+   - Text formatting and cleanup
+   - Conversation tracking
+   - Timestamp management
 
-4. Data Management
-   - Local image storage
-   - Capture state persistence
-   - Debug log output
-   - Region coordinate saving
-   - Captured text persistence
+4. Main Application (src/main.py)
+   - Core application logic
+   - UI management
+   - Capture timing
+   - File handling
+
+File Structure
+-------------
+- src/
+  - main.py: Core application
+  - region_selector.py: Screen region selection
+  - dialog_summarizer.py: Text processing
+  - openai_client.py: API integration
+  - chat_monitor.py: Conversation tracking
+  - prompts/: API prompt templates
+- output/: Generated files
+- temp/: Temporary data
 
 Dependencies
 -----------
 - PyQt6: GUI framework
-- MSS: Screen capture
-- Pillow: Image processing
-- ImageHash: Image comparison
-- PyObjC: macOS integration
-- OpenAI: Vision API integration
-- aiohttp: Async HTTP client
-- python-dotenv: Environment management
-- Python 3.x
+- OpenAI API: Text extraction
+- Python Imaging Library: Image handling
 
-Environment Setup
----------------
-1. Required Environment Variables
-   - OPENAI_API_KEY: For Vision API access
+Configuration
+-----------
+- Environment variables (.env)
+  - OpenAI API key
+  - Other configuration options
 
-2. File Structure
-   - output/: Captured data and logs
-   - temp/: Temporary files
-   - src/: Source code
-   - prompts/: OpenAI prompt templates
+Generated Files
+-------------
+- output/captured_text.txt: Processed text output
+- output/debug.log: Application logs
+- temp/region.json: Saved region data
+- output/captures/: Screen captures
+- output/dialogs/: Processed dialogs
+
+Note: Generated files are excluded from version control.

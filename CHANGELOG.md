@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file, with entries added when changes are pushed to the repository.
 
+### 2025-02-17 17:22 [c03ba34]
+- Added RegionSelector class for screen-wide region selection
+- Added DialogSummarizer for processing captured text
+- Fixed region selection bugs and improved resizing
+- Clear captured text on application launch
+- Added .gitignore for proper file tracking
+
 ### 2025-02-17 15:11 [e265d5d]
 - Reintroduced text capture functionality
   - Added OpenAI Vision API integration for text extraction
