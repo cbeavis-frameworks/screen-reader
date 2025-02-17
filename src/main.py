@@ -15,7 +15,13 @@ from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QComboBox, QTextEdit, QTabWidget
 )
-from PyQt6.QtCore import Qt, QTimer, QRect, pyqtSignal
+from PyQt6.QtCore import (
+    Qt,
+    QRect,
+    QPoint,
+    QTimer,
+    pyqtSignal
+)
 from PyQt6.QtGui import QPixmap, QTextCursor, QPainter, QColor, QPen
 from dotenv import load_dotenv
 import AppKit
