@@ -476,93 +476,45 @@ class MainWindow(QMainWindow):
             self.log_message(f"[ERROR] Error toggling capture: {str(e)}")
     
     def capture_screen(self):
-        """Capture the selected region of the window."""
+        """Capture the selected region of the screen."""
         try:
-            if not self.region or not self.selected_window:
-                self.log_message("[ERROR] No region or window selected")
+            if not self.region:
+                self.log_message("[ERROR] No region selected")
                 return
             
-            # Get window info
-            window_id = self.selected_window['id']
-            window_bounds = self.selected_window['bounds']
-            
-            # Create CGImage of the window
-            window_image = Quartz.CGWindowListCreateImage(
-                Quartz.CGRectNull,
-                Quartz.kCGWindowListOptionIncludingWindow,
-                window_id,
-                Quartz.kCGWindowImageBoundsIgnoreFraming | Quartz.kCGWindowImageShouldBeOpaque
-            )
-            
-            if window_image:
-                try:
-                    # Get image dimensions
-                    width = Quartz.CGImageGetWidth(window_image)
-                    height = Quartz.CGImageGetHeight(window_image)
+            # Create screenshot using mss
+            with mss.mss() as sct:
+                # Get region coordinates
+                monitor = {
+                    "top": self.region['y'],
+                    "left": self.region['x'],
+                    "width": self.region['width'],
+                    "height": self.region['height']
+                }
+                
+                # Capture screen region
+                screenshot = sct.grab(monitor)
+                
+                # Convert to PIL Image
+                img = Image.frombytes("RGB", screenshot.size, screenshot.rgb)
+                
+                # Calculate image hash
+                current_hash = hashlib.md5(img.tobytes()).hexdigest()
+                
+                # Check if image has changed
+                if current_hash != self.last_image_hash:
+                    self.log_message("[INFO] Change detected in captured region")
                     
-                    # Get image data
-                    data_provider = Quartz.CGImageGetDataProvider(window_image)
-                    if not data_provider:
-                        raise Exception("Failed to get data provider")
-                        
-                    image_data = Quartz.CGDataProviderCopyData(data_provider)
-                    if not image_data:
-                        raise Exception("Failed to copy image data")
+                    # Update state
+                    self.last_capture = img
+                    self.last_image_hash = current_hash
                     
-                    # Convert to PIL Image
-                    img = Image.frombytes(
-                        "RGBA",
-                        (width, height),
-                        image_data,
-                        "raw",
-                        "BGRA"
-                    )
+                    # Update preview
+                    self.update_preview(img)
                     
-                    # Crop to selected region
-                    region_x = self.region['x'] - window_bounds['x']
-                    region_y = self.region['y'] - window_bounds['y']
-                    region_box = (
-                        region_x,
-                        region_y,
-                        region_x + self.region['width'],
-                        region_y + self.region['height']
-                    )
-                    
-                    # Ensure crop region is within bounds
-                    region_box = (
-                        max(0, region_box[0]),
-                        max(0, region_box[1]),
-                        min(width, region_box[2]),
-                        min(height, region_box[3])
-                    )
-                    
-                    img = img.crop(region_box)
-                    
-                    # Calculate image hash
-                    current_hash = hashlib.md5(img.tobytes()).hexdigest()
-                    
-                    # Check if image has changed
-                    if current_hash != self.last_image_hash:
-                        self.log_message("[INFO] Change detected in captured region")
-                        
-                        # Update state
-                        self.last_capture = img
-                        self.last_image_hash = current_hash
-                        
-                        # Update preview
-                        self.update_preview(img)
-                        
-                        self.log_message("[INFO] New image captured and saved")
-                    else:
-                        self.log_message("[INFO] No change detected")
-                        
-                finally:
-                    # Clean up Quartz objects
-                    del image_data
-                    del data_provider
-                    del window_image
-            else:
-                self.log_message("[ERROR] Failed to capture window image")
+                    self.log_message("[INFO] New image captured and saved")
+                else:
+                    self.log_message("[INFO] No change detected")
                 
         except Exception as e:
             self.log_message(f"[ERROR] Error capturing screen: {str(e)}")
