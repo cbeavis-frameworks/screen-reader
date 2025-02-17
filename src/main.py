@@ -9,8 +9,9 @@ from pathlib import Path
 from datetime import datetime
 from PIL import Image
 import numpy as np
-from mss import mss
-import threading
+import mss.tools  # Changed from 'import mss'
+from mss import mss  # Added this line
+import io
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QComboBox, QTextEdit, QTabWidget
@@ -26,8 +27,7 @@ from PyQt6.QtGui import QPixmap, QTextCursor, QPainter, QColor, QPen, QImage
 from dotenv import load_dotenv
 import AppKit
 import Quartz
-import io
-
+import threading
 from openai_client import OpenAIClient
 from dialog_summarizer import start_dialog_summarizer, DialogSummarizer
 
@@ -483,7 +483,7 @@ class MainWindow(QMainWindow):
                 return
             
             # Create screenshot
-            with mss.mss() as sct:
+            with mss.mss() as sct:  # Use mss.mss() instead of just mss()
                 # Get region coordinates
                 monitor = {
                     "top": self.region['y'],
