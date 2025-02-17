@@ -71,8 +71,7 @@ def get_windsurf_windows(app_pid):
 
 class RegionSelector(QWidget):
     """Widget for selecting a region of the screen."""
-    
-    region_selected = pyqtSignal(dict)  # Changed to emit a dict
+    region_selected = pyqtSignal(dict)
     
     def __init__(self, window_bounds, region_file):
         """Initialize the region selector."""
@@ -80,9 +79,35 @@ class RegionSelector(QWidget):
         
         self.window_bounds = window_bounds
         self.region_file = region_file
-        self.start_pos = None
-        self.current_pos = None
-        self.is_selecting = False
+        
+        # Selection state
+        self.dragging = False
+        self.resizing = False
+        self.resize_edge = None
+        self.drag_start = None
+        self.selection = QRect(
+            window_bounds['width'] // 4,
+            window_bounds['height'] // 4,
+            window_bounds['width'] // 2,
+            window_bounds['height'] // 2
+        )
+        
+        # Create confirm button
+        self.confirm_button = QPushButton("Confirm Selection", self)
+        self.confirm_button.clicked.connect(self.confirm_selection)
+        self.confirm_button.setFixedWidth(120)
+        self.confirm_button.setStyleSheet("""
+            QPushButton {
+                background-color: #4CAF50;
+                color: white;
+                border: none;
+                padding: 5px;
+                border-radius: 3px;
+            }
+            QPushButton:hover {
+                background-color: #45a049;
+            }
+        """)
         
         # Set window properties
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
@@ -96,78 +121,148 @@ class RegionSelector(QWidget):
             window_bounds['height']
         )
         
+        # Set cursor to crosshair
+        self.setCursor(Qt.CursorShape.CrossCursor)
+    
     def paintEvent(self, event):
         """Paint the selection overlay."""
         painter = QPainter(self)
         
         # Set up semi-transparent overlay
-        overlay_color = QColor(0, 0, 0, 100)
-        painter.fillRect(self.rect(), overlay_color)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         
-        # Draw selection rectangle if selecting
-        if self.start_pos and self.current_pos:
-            selection_rect = self.get_selection_rect()
-            
-            # Draw semi-transparent white rectangle
-            selection_color = QColor(255, 255, 255, 50)
-            painter.fillRect(selection_rect, selection_color)
-            
-            # Draw white border
-            pen = QPen(Qt.GlobalColor.white, 2)
+        # Draw semi-transparent overlay for the entire window
+        painter.fillRect(self.rect(), QColor(255, 255, 255, 1))
+        
+        if self.selection:
+            # Draw selection rectangle border
+            pen = QPen(QColor(0, 120, 215), 2)
             painter.setPen(pen)
-            painter.drawRect(selection_rect)
+            painter.drawRect(self.selection)
             
-            # Draw dimensions
-            text = f"{selection_rect.width()} x {selection_rect.height()}"
-            painter.drawText(selection_rect, Qt.AlignmentFlag.AlignCenter, text)
+            # Draw resize handles
+            handle_size = 6
+            painter.fillRect(self.selection.left() - handle_size//2, self.selection.top() - handle_size//2, 
+                           handle_size, handle_size, QColor(0, 120, 215))
+            painter.fillRect(self.selection.right() - handle_size//2, self.selection.top() - handle_size//2,
+                           handle_size, handle_size, QColor(0, 120, 215))
+            painter.fillRect(self.selection.left() - handle_size//2, self.selection.bottom() - handle_size//2,
+                           handle_size, handle_size, QColor(0, 120, 215))
+            painter.fillRect(self.selection.right() - handle_size//2, self.selection.bottom() - handle_size//2,
+                           handle_size, handle_size, QColor(0, 120, 215))
             
+            # Position confirm button at bottom center of selection
+            button_x = self.selection.center().x() - self.confirm_button.width() // 2
+            button_y = self.selection.bottom() - self.confirm_button.height() - 10
+            self.confirm_button.move(button_x, button_y)
+            self.confirm_button.show()
+    
     def mousePressEvent(self, event):
         """Handle mouse press events."""
         if event.button() == Qt.MouseButton.LeftButton:
-            self.start_pos = event.pos()
-            self.current_pos = event.pos()
-            self.is_selecting = True
-            self.update()
+            pos = event.position()
+            handle_size = 10
+            
+            # Check if clicking on resize handles
+            if self.selection:
+                # Top-left
+                if abs(pos.x() - self.selection.left()) < handle_size and abs(pos.y() - self.selection.top()) < handle_size:
+                    self.resizing = True
+                    self.resize_edge = 'top-left'
+                    return
+                # Top-right
+                elif abs(pos.x() - self.selection.right()) < handle_size and abs(pos.y() - self.selection.top()) < handle_size:
+                    self.resizing = True
+                    self.resize_edge = 'top-right'
+                    return
+                # Bottom-left
+                elif abs(pos.x() - self.selection.left()) < handle_size and abs(pos.y() - self.selection.bottom()) < handle_size:
+                    self.resizing = True
+                    self.resize_edge = 'bottom-left'
+                    return
+                # Bottom-right
+                elif abs(pos.x() - self.selection.right()) < handle_size and abs(pos.y() - self.selection.bottom()) < handle_size:
+                    self.resizing = True
+                    self.resize_edge = 'bottom-right'
+                    return
+            
+            # Check if clicking inside selection for dragging
+            if self.selection and self.selection.contains(int(pos.x()), int(pos.y())):
+                self.dragging = True
+                self.drag_start = pos - self.selection.topLeft()
+                self.setCursor(Qt.CursorShape.ClosedHandCursor)
             
     def mouseMoveEvent(self, event):
         """Handle mouse move events."""
-        if self.is_selecting:
-            self.current_pos = event.pos()
+        pos = event.position()
+        
+        if self.resizing:
+            if self.resize_edge == 'top-left':
+                self.selection.setTopLeft(pos.toPoint())
+            elif self.resize_edge == 'top-right':
+                self.selection.setTopRight(pos.toPoint())
+            elif self.resize_edge == 'bottom-left':
+                self.selection.setBottomLeft(pos.toPoint())
+            elif self.resize_edge == 'bottom-right':
+                self.selection.setBottomRight(pos.toPoint())
             self.update()
             
+        elif self.dragging:
+            new_pos = pos - self.drag_start
+            self.selection.moveTopLeft(new_pos.toPoint())
+            self.update()
+            
+        else:
+            # Update cursor based on position
+            handle_size = 10
+            if self.selection:
+                # Near corners
+                if (abs(pos.x() - self.selection.left()) < handle_size and 
+                    abs(pos.y() - self.selection.top()) < handle_size):
+                    self.setCursor(Qt.CursorShape.SizeFDiagCursor)
+                elif (abs(pos.x() - self.selection.right()) < handle_size and 
+                      abs(pos.y() - self.selection.top()) < handle_size):
+                    self.setCursor(Qt.CursorShape.SizeBDiagCursor)
+                elif (abs(pos.x() - self.selection.left()) < handle_size and 
+                      abs(pos.y() - self.selection.bottom()) < handle_size):
+                    self.setCursor(Qt.CursorShape.SizeBDiagCursor)
+                elif (abs(pos.x() - self.selection.right()) < handle_size and 
+                      abs(pos.y() - self.selection.bottom()) < handle_size):
+                    self.setCursor(Qt.CursorShape.SizeFDiagCursor)
+                # Inside selection
+                elif self.selection.contains(int(pos.x()), int(pos.y())):
+                    self.setCursor(Qt.CursorShape.OpenHandCursor)
+                else:
+                    self.setCursor(Qt.CursorShape.CrossCursor)
+    
     def mouseReleaseEvent(self, event):
         """Handle mouse release events."""
-        if event.button() == Qt.MouseButton.LeftButton and self.is_selecting:
-            self.is_selecting = False
-            
-            if self.start_pos and self.current_pos:
-                # Get the selection rectangle
-                selection_rect = self.get_selection_rect()
-                
-                # Convert to region dict
-                region = {
-                    'left': int(self.window_bounds['x'] + selection_rect.x()),
-                    'top': int(self.window_bounds['y'] + selection_rect.y()),
-                    'width': int(selection_rect.width()),
-                    'height': int(selection_rect.height()),
-                    'mon': 1
-                }
-                
-                # Emit the region
-                self.region_selected.emit(region)
-                self.close()
-            
-    def get_selection_rect(self):
-        """Get the selection rectangle."""
-        if not self.start_pos or not self.current_pos:
-            return QRect()
-            
-        return QRect(
-            min(self.start_pos.x(), self.current_pos.x()),
-            min(self.start_pos.y(), self.current_pos.y()),
-            abs(self.current_pos.x() - self.start_pos.x()),
-            abs(self.current_pos.y() - self.start_pos.y())
-        )
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.dragging = False
+            self.resizing = False
+            self.resize_edge = None
+            # Reset cursor if not over selection
+            if not self.selection.contains(event.position().toPoint()):
+                self.setCursor(Qt.CursorShape.CrossCursor)
+            else:
+                self.setCursor(Qt.CursorShape.OpenHandCursor)
+    
+    def confirm_selection(self):
+        """Confirm the selection and emit the region."""
+        if self.selection:
+            region = {
+                'x': self.selection.x() + self.window_bounds['x'],
+                'y': self.selection.y() + self.window_bounds['y'],
+                'width': self.selection.width(),
+                'height': self.selection.height()
+            }
+            self.region_selected.emit(region)
+            self.close()
+    
+    def keyPressEvent(self, event):
+        """Handle key press events."""
+        if event.key() == Qt.Key.Key_Escape:
+            self.close()
 
 class MainWindow(QMainWindow):
     def __init__(self):
