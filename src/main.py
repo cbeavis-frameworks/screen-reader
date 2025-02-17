@@ -581,8 +581,8 @@ class MainWindow(QMainWindow):
             if region:
                 # Calculate relative region for persistence
                 relative_region = {
-                    'x': region['x'] - self.selected_window['x'],
-                    'y': region['y'] - self.selected_window['y'],
+                    'x': region['x'] - self.selected_window['bounds']['x'],
+                    'y': region['y'] - self.selected_window['bounds']['y'],
                     'width': region['width'],
                     'height': region['height']
                 }
@@ -611,8 +611,8 @@ class MainWindow(QMainWindow):
                     
                 # Convert relative region to absolute coordinates
                 self.region = {
-                    'x': self.selected_window['x'] + relative_region['x'],
-                    'y': self.selected_window['y'] + relative_region['y'],
+                    'x': self.selected_window['bounds']['x'] + relative_region['x'],
+                    'y': self.selected_window['bounds']['y'] + relative_region['y'],
                     'width': relative_region['width'],
                     'height': relative_region['height']
                 }
