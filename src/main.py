@@ -71,37 +71,47 @@ def get_windsurf_windows(app_pid):
 
 class RegionSelector(QWidget):
     """Widget for selecting a region of the screen."""
-    region_selected = pyqtSignal(dict)
+    regionSelected = pyqtSignal(dict)
     
-    def __init__(self, window_bounds, region_file):
+    def __init__(self, window_bounds, region_file, initial_region=None):
         """Initialize the region selector."""
         super().__init__()
         
         self.window_bounds = window_bounds
         self.region_file = region_file
         
-        # Selection state
+        # Set window flags
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        
+        # Initialize selection
+        if initial_region:
+            self.selection = initial_region
+        else:
+            # Default to full window if no initial region
+            self.selection = QRect(
+                window_bounds.x(),
+                window_bounds.y(),
+                window_bounds.width(),
+                window_bounds.height()
+            )
+        
+        # Initialize state
         self.dragging = False
         self.resizing = False
+        self.drag_start = QPoint()
         self.resize_edge = None
-        self.drag_start = None
-        self.selection = QRect(
-            window_bounds['width'] // 4,
-            window_bounds['height'] // 4,
-            window_bounds['width'] // 2,
-            window_bounds['height'] // 2
-        )
+        self.resize_start = QRect()
         
         # Create confirm button
-        self.confirm_button = QPushButton("Confirm Selection", self)
+        self.confirm_button = QPushButton("Confirm", self)
         self.confirm_button.clicked.connect(self.confirm_selection)
-        self.confirm_button.setFixedWidth(120)
         self.confirm_button.setStyleSheet("""
             QPushButton {
                 background-color: #4CAF50;
                 color: white;
                 border: none;
-                padding: 5px;
+                padding: 5px 10px;
                 border-radius: 3px;
             }
             QPushButton:hover {
@@ -109,20 +119,9 @@ class RegionSelector(QWidget):
             }
         """)
         
-        # Set window properties
-        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        
-        # Set geometry to match window
-        self.setGeometry(
-            window_bounds['x'],
-            window_bounds['y'],
-            window_bounds['width'],
-            window_bounds['height']
-        )
-        
-        # Set cursor to crosshair
-        self.setCursor(Qt.CursorShape.CrossCursor)
+        # Set geometry
+        self.setGeometry(0, 0, QApplication.primaryScreen().size().width(), QApplication.primaryScreen().size().height())
+        self.update_confirm_button_position()
     
     def paintEvent(self, event):
         """Paint the selection overlay."""
@@ -252,12 +251,12 @@ class RegionSelector(QWidget):
         """Confirm the selection and emit the region."""
         if self.selection:
             region = {
-                'x': self.selection.x() + self.window_bounds['x'],
-                'y': self.selection.y() + self.window_bounds['y'],
+                'x': self.selection.x() + self.window_bounds.x(),
+                'y': self.selection.y() + self.window_bounds.y(),
                 'width': self.selection.width(),
                 'height': self.selection.height()
             }
-            self.region_selected.emit(region)
+            self.regionSelected.emit(region)
             self.close()
     
     def keyPressEvent(self, event):
@@ -342,7 +341,7 @@ class MainWindow(QMainWindow):
         
         # Region selection button
         self.region_button = QPushButton("Select Region")
-        self.region_button.clicked.connect(self.start_region_selection)
+        self.region_button.clicked.connect(self.select_region)
         controls_layout.addWidget(self.region_button)
         
         # Capture control button
@@ -576,23 +575,37 @@ class MainWindow(QMainWindow):
         except Exception as e:
             self.log_message(f"[ERROR] Error selecting window: {str(e)}")
             
-    def start_region_selection(self):
-        """Start region selection process."""
+    def select_region(self):
+        """Open the region selector."""
         try:
-            if not self.selected_window:
-                self.log_message("[ERROR] No window selected")
-                return
+            if self.selected_window:
+                self.log_message("[INFO] Opening region selector")
                 
-            # Create region selector
-            self.region_selector = RegionSelector(
-                window_bounds=self.selected_window['bounds'],
-                region_file=self.region_file
-            )
-            self.region_selector.region_selected.connect(self.on_region_selected)
-            self.region_selector.show()
-            
+                # Create region selector with current region
+                initial_region = QRect(
+                    self.region['x'],
+                    self.region['y'],
+                    self.region['width'],
+                    self.region['height']
+                ) if self.region else None
+                
+                self.region_selector = RegionSelector(
+                    window_bounds=QRect(
+                        self.selected_window['bounds']['x'],
+                        self.selected_window['bounds']['y'],
+                        self.selected_window['bounds']['width'],
+                        self.selected_window['bounds']['height']
+                    ),
+                    region_file=self.region_file,
+                    initial_region=initial_region
+                )
+                
+                # Connect signals
+                self.region_selector.regionSelected.connect(self.on_region_selected)
+                self.region_selector.show()
+                
         except Exception as e:
-            self.log_message(f"[ERROR] Failed to start region selection: {str(e)}")
+            self.log_message(f"[ERROR] Error opening region selector: {str(e)}")
             
     def on_region_selected(self, region):
         """Handle region selection."""
