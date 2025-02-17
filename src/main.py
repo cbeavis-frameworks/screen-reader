@@ -518,11 +518,10 @@ class MainWindow(QMainWindow):
                 window = next((w for w in self.windsurf_windows if w['name'] == self.selected_window['name']), None)
                 if window:
                     self.region = {
-                        'top': int(window['bounds']['y'] + self.relative_region['y']),
-                        'left': int(window['bounds']['x'] + self.relative_region['x']),
-                        'width': int(self.relative_region['width']),
-                        'height': int(self.relative_region['height']),
-                        'mon': 1
+                        'x': window['bounds']['x'] + self.relative_region['x'],
+                        'y': window['bounds']['y'] + self.relative_region['y'],
+                        'width': self.relative_region['width'],
+                        'height': self.relative_region['height']
                     }
                     
         except Exception as e:
@@ -536,19 +535,20 @@ class MainWindow(QMainWindow):
                 self.selected_window = self.window_combo.itemData(index)
                 if self.selected_window:
                     self.region_button.setEnabled(True)
-                    self.log_message("[INFO] Select chat region")
                     
-                    # Set full window region initially
-                    self.region = {
-                        'top': int(self.selected_window['bounds']['y']),
-                        'left': int(self.selected_window['bounds']['x']),
-                        'width': int(self.selected_window['bounds']['width']),
-                        'height': int(self.selected_window['bounds']['height']),
-                        'mon': 1
-                    }
-                    
-                    # Load saved region if exists
-                    self.load_saved_region()
+                    # Try to load saved region
+                    if self.load_saved_region():
+                        self.log_message("[INFO] Previous region loaded")
+                    else:
+                        # Set full window region initially
+                        self.region = {
+                            'x': self.selected_window['bounds']['x'],
+                            'y': self.selected_window['bounds']['y'],
+                            'width': self.selected_window['bounds']['width'],
+                            'height': self.selected_window['bounds']['height']
+                        }
+                        self.log_message("[INFO] No saved region found, using full window")
+                        self.log_message(f"[REGION] Initial region: {json.dumps(self.region, indent=2)}")
             else:
                 self.selected_window = None
                 self.region_button.setEnabled(False)
@@ -579,52 +579,54 @@ class MainWindow(QMainWindow):
         """Handle region selection."""
         try:
             if region:
-                self.region = region
+                # Calculate relative region for persistence
+                relative_region = {
+                    'x': region['x'] - self.selected_window['x'],
+                    'y': region['y'] - self.selected_window['y'],
+                    'width': region['width'],
+                    'height': region['height']
+                }
                 
-                # Calculate relative region
-                if self.selected_window:
-                    window_bounds = self.selected_window['bounds']
-                    relative_region = {
-                        'x': self.region['left'] - window_bounds['x'],
-                        'y': self.region['top'] - window_bounds['y'],
-                        'width': self.region['width'],
-                        'height': self.region['height']
-                    }
-                    
-                    # Save region to file
-                    with open(self.region_file, 'w') as f:
-                        json.dump(relative_region, f)
-                    
-                    self.log_message(f"[REGION] Selected region: {self.region}")
-                    self.relative_region = relative_region
-                    self.capture_button.setEnabled(True)
-                    self.log_message("[INFO] Ready to capture")
-                    
+                # Save to file
+                with open(self.region_file, 'w') as f:
+                    json.dump(relative_region, f, indent=4)
+                
+                self.region = region
+                self.relative_region = relative_region
+                self.capture_button.setEnabled(True)
+                
+                self.log_message(f"[REGION] Selected region: {json.dumps(region, indent=2)}")
+                self.log_message(f"[REGION] Saved relative region: {json.dumps(relative_region, indent=2)}")
+                self.log_message("[INFO] Ready to capture")
+                
         except Exception as e:
             self.log_message(f"[ERROR] Error handling region selection: {str(e)}")
             
     def load_saved_region(self):
         """Load saved region from file."""
         try:
-            if (self.base_dir / "temp" / "region.json").exists():
+            if self.region_file.exists():
                 with open(self.region_file, 'r') as f:
                     relative_region = json.load(f)
                     
-                if self.selected_window:
-                    # Convert relative coordinates to absolute
-                    self.region = {
-                        'top': int(self.selected_window['bounds']['y'] + relative_region['y']),
-                        'left': int(self.selected_window['bounds']['x'] + relative_region['x']),
-                        'width': int(relative_region['width']),
-                        'height': int(relative_region['height']),
-                        'mon': 1
-                    }
-                    self.log_message(f"[REGION] Loaded saved region: {self.region}")
-                    return True
+                # Convert relative region to absolute coordinates
+                self.region = {
+                    'x': self.selected_window['x'] + relative_region['x'],
+                    'y': self.selected_window['y'] + relative_region['y'],
+                    'width': relative_region['width'],
+                    'height': relative_region['height']
+                }
+                self.relative_region = relative_region
+                
+                self.log_message(f"[REGION] Loaded saved region: {json.dumps(self.region, indent=2)}")
+                self.log_message(f"[REGION] Using relative region: {json.dumps(relative_region, indent=2)}")
+                self.capture_button.setEnabled(True)
+                return True
+                
         except Exception as e:
             self.log_message(f"[ERROR] Error loading region: {str(e)}")
         return False
-        
+
     def start_capture(self):
         """Start screen capture."""
         try:
