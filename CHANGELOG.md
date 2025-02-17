@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file, with entries added when changes are pushed to the repository.
 
+### 2025-02-17 18:00 [3c18476]
+- Added new Dialog tab to display summarized dialog lines with timestamps
+- Fixed OpenAI response parsing to handle JSON properly and prevent duplicates
+- Updated dialog summarizer prompt to use first-person tone
+- Fixed image conversion in display updates
+- Added dialog folder cleanup on launch for fresh state
+- Improved error handling and logging in OpenAI client
+
 ### 2025-02-17 17:22 [c03ba34]
 - Added RegionSelector class for screen-wide region selection
 - Added DialogSummarizer for processing captured text

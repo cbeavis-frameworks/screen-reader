@@ -1,7 +1,7 @@
 Screen Reader Application Specification
 ===================================
 
-A Python application for capturing and processing text from a selected region of the screen.
+A Python application that captures and processes text from a selected screen region, with support for dialog summarization and display.
 
 Core Features
 ------------
@@ -22,29 +22,42 @@ Core Features
    - Format and timestamp dialog entries
    - Maintain conversation context
 
-Technical Components
-------------------
-1. RegionSelector (src/region_selector.py)
+Key Components
+-------------
+
+1. Main Window (src/main.py)
+   - Manages the application's UI with four tabs:
+     * Image Preview: Shows the current capture
+     * Captured Text: Displays raw captured text
+     * Debug Log: Shows application logs
+     * Dialog: Displays summarized dialog lines with timestamps
+   - Handles region selection and capture controls
+   - Processes images for text extraction
+   - Manages file I/O and display updates
+
+2. RegionSelector (src/region_selector.py)
    - Visual interface for selecting screen regions
    - Drag and resize functionality
    - Screen coordinate handling
    - Region persistence
 
-2. OpenAI Integration (src/openai_client.py)
+3. OpenAI Integration (src/openai_client.py)
    - Vision API for text extraction
    - Error handling and rate limiting
    - Response processing
+   - Handles communication with OpenAI's Vision API
+   - Processes images for text extraction
+   - Uses JSON response format for structured output
+   - Maintains context to prevent duplicate text extraction
 
-3. Dialog Processing (src/dialog_summarizer.py)
+4. Dialog Processing (src/dialog_summarizer.py)
    - Text formatting and cleanup
    - Conversation tracking
    - Timestamp management
-
-4. Main Application (src/main.py)
-   - Core application logic
-   - UI management
-   - Capture timing
-   - File handling
+   - Processes captured text into dialog summaries
+   - Uses first-person tone for natural conversation flow
+   - Saves dialog lines with timestamps
+   - Prevents duplicate dialog entries
 
 File Structure
 -------------
@@ -58,11 +71,20 @@ File Structure
 - output/: Generated files
 - temp/: Temporary data
 
+File Management:
+- Captured text stored in output/captured_text.txt
+- Dialog summaries stored in output/dialogs/
+- Debug logs in output/debug.log
+- Temporary files in temp/
+- All directories cleared on application launch for fresh state
+
 Dependencies
 -----------
 - PyQt6: GUI framework
 - OpenAI API: Text extraction
 - Python Imaging Library: Image handling
+- Python standard library for file operations
+- Environment variables for API configuration
 
 Configuration
 -----------
@@ -77,5 +99,11 @@ Generated Files
 - temp/region.json: Saved region data
 - output/captures/: Screen captures
 - output/dialogs/: Processed dialogs
+
+Recent Updates:
+- Added Dialog tab for summarized conversation display
+- Improved text handling and duplicate prevention
+- Enhanced error handling and logging
+- Added automatic cleanup of dialog files on launch
 
 Note: Generated files are excluded from version control.
