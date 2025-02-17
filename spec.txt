@@ -22,7 +22,10 @@ Core Features
 3. Text Processing
    - OpenAI Vision API integration for text extraction
    - Context-aware text processing
-   - Duplicate detection and removal
+   - Smart text filtering:
+     * Excludes boxed content
+     * Ignores status messages
+     * Prevents duplicates
    - Maintains conversation history
 
 4. Dialog Processing
@@ -93,5 +96,6 @@ Recent Updates
 - Enhanced capture sensitivity and performance
 - Speech-optimized dialog processing
 - Better error handling and logging
+- Improved prompt handling for text processing
 
 Note: Generated files are excluded from version control.

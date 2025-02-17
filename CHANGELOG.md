@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file, with entries added when changes are pushed to the repository.
 
+### 2025-02-17 20:23 [2a1693f]
+- Improved text extraction prompt:
+  * Removed specific message box references for more general use
+  * Clarified text extraction rules
+  * Added exclusion for status messages
+  * Simplified and streamlined instructions
+
 ### 2025-02-17 18:28 [2674456]
 - Improved region selector appearance and usability:
   * Thin 1-pixel green border for cleaner look
