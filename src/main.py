@@ -20,7 +20,8 @@ from PyQt6.QtCore import (
     QRect,
     QPoint,
     QTimer,
-    pyqtSignal
+    pyqtSignal,
+    QEventLoop
 )
 from PyQt6.QtGui import QPixmap, QTextCursor, QPainter, QColor, QPen, QImage
 from dotenv import load_dotenv
@@ -29,6 +30,7 @@ import Quartz
 import threading
 from openai_client import OpenAIClient
 from dialog_summarizer import start_dialog_summarizer, DialogSummarizer
+from chat_monitor import ChatMonitor
 import imagehash
 
 def get_windsurf_app():
@@ -350,6 +352,7 @@ class MainWindow(QMainWindow):
         self.last_capture_file = self.captures_dir / "last_capture.jpg"
         self.region_file = self.temp_dir / "region.json"
         self.last_image_file = self.temp_dir / "last_image.jpg"
+        self.last_image_hash_file = self.output_dir / "last_image_hash.txt"
         
         # Clear debug log
         if self.debug_log_file.exists():
@@ -371,6 +374,16 @@ class MainWindow(QMainWindow):
         self.capture_timer = QTimer()
         self.capture_timer.timeout.connect(self.capture_screen)
         self.capture_timer.setInterval(2000)  # 2 seconds
+        
+        # Initialize OpenAI client and chat monitor
+        try:
+            self.openai_client = OpenAIClient()
+            self.chat_monitor = ChatMonitor(str(self.output_dir))
+            self.log_message("[INIT] OpenAI client and chat monitor initialized")
+        except Exception as e:
+            self.log_message(f"[ERROR] Failed to initialize OpenAI/chat components: {str(e)}")
+            self.openai_client = None
+            self.chat_monitor = None
         
         # Setup UI
         self.setup_ui()
@@ -511,6 +524,18 @@ class MainWindow(QMainWindow):
                     # Update state
                     self.last_capture = img
                     self.last_image_hash = current_hash
+                    
+                    # Save hash to file
+                    with open(self.last_image_hash_file, 'w') as f:
+                        f.write(str(current_hash))
+                    
+                    # Save image for OpenAI analysis
+                    img.save(self.last_image_file)
+                    
+                    # Extract text if OpenAI client is available
+                    if self.openai_client and self.chat_monitor:
+                        loop = asyncio.get_event_loop()
+                        loop.create_task(self.process_new_image())
                     
                     # Update preview
                     self.update_preview(img)
@@ -748,6 +773,36 @@ class MainWindow(QMainWindow):
             self.log_message(f"[ERROR] Error loading region: {str(e)}")
         return False
 
+    async def process_new_image(self):
+        """Process new image for text extraction."""
+        try:
+            # Read image file
+            with open(self.last_image_file, 'rb') as f:
+                image_data = f.read()
+            
+            # Call OpenAI API
+            result = await self.openai_client.analyze_image(image_data)
+            
+            if result and 'text' in result:
+                new_text = result['text']
+                if new_text:
+                    # Add timestamp header
+                    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    self.chat_monitor.process_text(f"\n### {timestamp}")
+                    
+                    # Process each line through chat monitor
+                    for line in new_text:
+                        processed = self.chat_monitor.process_text(line)
+                        if processed:
+                            self.log_message(f"[INFO] New text captured: {processed}")
+                else:
+                    self.log_message("[INFO] No new text found in image")
+            else:
+                self.log_message("[WARNING] Invalid or empty response from OpenAI")
+                
+        except Exception as e:
+            self.log_message(f"[ERROR] Failed to process image: {str(e)}")
+
     def log_message(self, message: str):
         """Log a message to the debug log file."""
         try:
@@ -782,43 +837,38 @@ class MainWindow(QMainWindow):
             self.log_message(f"[ERROR] Error during close: {str(e)}")
             event.accept()
             
-    def main(self):
-        """Main entry point."""
-        try:
-            # Load environment variables
-            load_dotenv()
-            
-            # Initialize QApplication
-            app = QApplication(sys.argv)
-            
-            # Create and setup asyncio loop
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            
-            # Run event loop in a separate thread
-            def run_event_loop():
-                loop.run_forever()
-                
-            loop_thread = threading.Thread(target=run_event_loop, daemon=True)
-            loop_thread.start()
-            
-            # Create main window
-            window = MainWindow()
-            window.show()
-            
-            # Run Qt event loop
-            exit_code = app.exec()
-            
-            # Clean up
-            loop.call_soon_threadsafe(loop.stop)
-            loop_thread.join(timeout=1.0)
-            loop.close()
-            
-            sys.exit(exit_code)
-            
-        except Exception as e:
-            print(f"Error: {str(e)}")
-            sys.exit(1)
+def run_event_loop():
+    """Run the Qt event loop with asyncio integration."""
+    try:
+        # Create Qt application
+        app = QApplication(sys.argv)
+        
+        # Create and setup asyncio loop
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        # Create main window
+        window = MainWindow()
+        window.show()
+        
+        # Create periodic callback to process asyncio events
+        def process_asyncio():
+            loop.stop()
+            loop.run_forever()
+        
+        # Create timer for asyncio processing
+        asyncio_timer = QTimer()
+        asyncio_timer.timeout.connect(process_asyncio)
+        asyncio_timer.start(10)  # Process every 10ms
+        
+        # Run Qt event loop
+        app.exec()
+        
+    except Exception as e:
+        print(f"Error in event loop: {str(e)}")
+        sys.exit(1)
+    finally:
+        loop.close()
 
 def main():
     """Main entry point."""
@@ -826,15 +876,8 @@ def main():
         # Load environment variables
         load_dotenv()
         
-        # Initialize QApplication
-        app = QApplication(sys.argv)
-        
-        # Create and show main window
-        window = MainWindow()
-        window.show()
-        
-        # Start event loop
-        sys.exit(app.exec())
+        # Run event loop
+        run_event_loop()
         
     except Exception as e:
         print(f"Error: {str(e)}")

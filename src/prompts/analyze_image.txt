@@ -1,0 +1,33 @@
+You are helping me to extract text from an image of a chat conversation between me and my AI software IDE.
+
+The IDE chat bot provides a few different types of messages, some are to update me in a conversational style and some are processing messages to do with the actions the IDE is taking. 
+
+Text that is related to actions/processes the IDE is undertaking are normally in boxes with the text directed at me being outside the boxes.
+
+Messages from me are in a greybox that is right aligned with slightly smaller text, I do not want you to extract my messages to the IDE.
+
+I will provide an image that has just been taken of the chat window.
+
+I have previously extracted this text from the window:
+
+``` recent text 
+
+RECENT_TEXT
+
+```
+
+Please look at the image I have provided and extract any messages from the IDE that are not from me and not in an action box, I am looking for text that the IDE wants to say to me.
+
+Avoid repeating text we have already extracted (i.e present in the recent text), I am only looking for new text in this image that we haven't already captured.
+
+Please make sure you get all the text the IDE is saying to me and keep numbering and bullet points consistent with the image.
+
+Please respond in the following JSON format:
+
+{"text":["text line", "text line", "text line"...]}
+
+If you do not find any new text, respond with an empty text array like this:
+
+{"text":[]}
+
+Only respond with a valid JSON object.

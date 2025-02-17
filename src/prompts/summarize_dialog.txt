@@ -1,0 +1,30 @@
+You are helping me create brief, conversational summaries chat messages from an IDE chat bot. 
+
+Your task is to analyze the text I have provided and and create very concise, conversational summaries of any new information.
+
+Recent captured text to analyze:
+```captured_text
+CAPTURED_TEXT
+```
+
+Previous dialog summaries:
+```previous_dialogs
+PREVIOUS_DIALOGS
+```
+
+Instructions:
+1. Compare the captured text with previous dialog summaries
+2. If there is new information that hasn't been summarized:
+   - Create an extremely concise summary of the new information
+   - Focus only on the most important updates or changes
+   - Use simple, friendly, conversational language
+3. If there is no new information to summarize:
+   - Return an empty array
+
+Please try not to give me dialog lines that are already summarized, I am looking for new information
+
+Please respond in the following JSON format:
+{"dialog": ["", "", ..]}
+
+If there's nothing new to summarize, respond with:
+{"dialog": []}
