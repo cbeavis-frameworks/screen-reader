@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file, with entries added when changes are pushed to the repository.
 
+### 2025-02-17 15:11 [e265d5d]
+- Reintroduced text capture functionality
+  - Added OpenAI Vision API integration for text extraction
+  - Improved text deduplication and formatting
+    * Added timestamp headers to captured text
+    * Modified to handle all text, not just system messages
+  - Enhanced event loop handling
+    * Proper asyncio integration with Qt
+    * Fixed event loop issues for async tasks
+    * Improved error handling and logging
+
 ### 2025-02-17 14:34 [a36a01b4]
 - Reorganized changelog format to include timestamps and commit hashes
 - Merged all development work to main branch
