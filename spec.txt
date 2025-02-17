@@ -1,109 +1,97 @@
 Screen Reader Application Specification
 ===================================
 
-A Python application that captures and processes text from a selected screen region, with support for dialog summarization and display.
+A Python application that captures and processes text from a selected screen region, with support for dialog summarization and speech-optimized output.
 
 Core Features
 ------------
 1. Screen Region Selection
-   - Select any region of the screen using a visual selector
-   - Resize and move selection with intuitive handles
-   - Save and load previous selection
-   - Screen-wide coordinates for accurate region tracking
+   - Visual region selector with thin green border
+   - Semi-transparent overlay for better visibility
+   - Intuitive cursor feedback:
+     * Resize cursors on corner handles
+     * Hand cursor for dragging
+     * Arrow cursor outside region
 
-2. Text Capture
-   - Capture screen region at regular intervals
-   - Extract text using OpenAI Vision API
-   - Process text for meaningful changes
-   - Clear capture history on launch
+2. Screen Capture
+   - High-frequency capture (1 second intervals)
+   - Sensitive change detection using perceptual hashing
+   - Efficient image processing and storage
+   - Automatic cleanup of temporary files
 
-3. Dialog Monitoring
-   - Track and process conversation-like text
-   - Format and timestamp dialog entries
-   - Maintain conversation context
+3. Text Processing
+   - OpenAI Vision API integration for text extraction
+   - Context-aware text processing
+   - Duplicate detection and removal
+   - Maintains conversation history
+
+4. Dialog Processing
+   - First-person tone for natural conversation
+   - Speech-optimized brevity
+   - Automatic timestamping
+   - Prevents duplicate dialog entries
 
 Key Components
 -------------
-
 1. Main Window (src/main.py)
-   - Manages the application's UI with four tabs:
-     * Image Preview: Shows the current capture
-     * Captured Text: Displays raw captured text
-     * Debug Log: Shows application logs
-     * Dialog: Displays summarized dialog lines with timestamps
-   - Handles region selection and capture controls
-   - Processes images for text extraction
-   - Manages file I/O and display updates
+   - Core application logic and UI
+   - Four display tabs:
+     * Image Preview: Shows current capture
+     * Captured Text: Raw captured text
+     * Debug Log: Application logs
+     * Dialog: Summarized conversations
+   - Manages capture timing and image comparison
 
 2. RegionSelector (src/region_selector.py)
-   - Visual interface for selecting screen regions
-   - Drag and resize functionality
+   - Clean, minimal UI with thin borders
+   - Intuitive resize/drag interactions
+   - Smart cursor feedback
    - Screen coordinate handling
-   - Region persistence
 
 3. OpenAI Integration (src/openai_client.py)
    - Vision API for text extraction
-   - Error handling and rate limiting
-   - Response processing
-   - Handles communication with OpenAI's Vision API
-   - Processes images for text extraction
-   - Uses JSON response format for structured output
-   - Maintains context to prevent duplicate text extraction
+   - JSON response format
+   - Context management
+   - Error handling and logging
 
 4. Dialog Processing (src/dialog_summarizer.py)
-   - Text formatting and cleanup
-   - Conversation tracking
+   - First-person conversation style
+   - Speech-optimized summaries
    - Timestamp management
-   - Processes captured text into dialog summaries
-   - Uses first-person tone for natural conversation flow
-   - Saves dialog lines with timestamps
-   - Prevents duplicate dialog entries
+   - Duplicate prevention
 
 File Structure
 -------------
-- src/
-  - main.py: Core application
-  - region_selector.py: Screen region selection
-  - dialog_summarizer.py: Text processing
-  - openai_client.py: API integration
-  - chat_monitor.py: Conversation tracking
-  - prompts/: API prompt templates
+- src/: Source code
 - output/: Generated files
+  * captures/: Screen captures
+  * dialogs/: Processed dialogs
+  * debug.log: Application logs
+  * captured_text.txt: Raw text
 - temp/: Temporary data
-
-File Management:
-- Captured text stored in output/captured_text.txt
-- Dialog summaries stored in output/dialogs/
-- Debug logs in output/debug.log
-- Temporary files in temp/
-- All directories cleared on application launch for fresh state
+- prompts/: OpenAI prompt templates
 
 Dependencies
 -----------
 - PyQt6: GUI framework
-- OpenAI API: Text extraction
+- OpenAI API: Text extraction and summarization
 - Python Imaging Library: Image handling
-- Python standard library for file operations
-- Environment variables for API configuration
+- imagehash: Perceptual image comparison
+- mss: Screen capture
+- dotenv: Environment configuration
 
 Configuration
 -----------
-- Environment variables (.env)
-  - OpenAI API key
-  - Other configuration options
+- .env file for API keys
+- Region selection saved between sessions
+- Configurable capture frequency (1s default)
+- Adjustable image comparison sensitivity
 
-Generated Files
--------------
-- output/captured_text.txt: Processed text output
-- output/debug.log: Application logs
-- temp/region.json: Saved region data
-- output/captures/: Screen captures
-- output/dialogs/: Processed dialogs
-
-Recent Updates:
-- Added Dialog tab for summarized conversation display
-- Improved text handling and duplicate prevention
-- Enhanced error handling and logging
-- Added automatic cleanup of dialog files on launch
+Recent Updates
+------------
+- Improved region selector UI and usability
+- Enhanced capture sensitivity and performance
+- Speech-optimized dialog processing
+- Better error handling and logging
 
 Note: Generated files are excluded from version control.

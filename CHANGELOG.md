@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file, with entries added when changes are pushed to the repository.
 
+### 2025-02-17 18:28 [2674456]
+- Improved region selector appearance and usability:
+  * Thin 1-pixel green border for cleaner look
+  * Semi-transparent background for better visibility
+  * Proper cursor handling (resize/drag)
+- Enhanced capture sensitivity and performance:
+  * Reduced perceptual hash threshold from 5 to 2
+  * Increased capture frequency to 1 second
+- Improved dialog handling:
+  * Added first-person tone requirement
+  * Emphasized brevity for speech output
+  * Better duplicate prevention
+- Enhanced logging and error handling in OpenAI integration
+
 ### 2025-02-17 18:00 [3c18476]
 - Added new Dialog tab to display summarized dialog lines with timestamps
 - Fixed OpenAI response parsing to handle JSON properly and prevent duplicates
