@@ -162,83 +162,100 @@ class RegionSelector(QWidget):
             self.confirm_button.move(button_x, button_y)
             self.confirm_button.show()
     
+    def update_confirm_button_position(self):
+        """Update the position of the confirm button to stay within the selection."""
+        if hasattr(self, 'confirm_button') and hasattr(self, 'selection'):
+            # Position the button at the bottom right of the selection
+            button_width = 80
+            button_height = 30
+            self.confirm_button.setFixedSize(button_width, button_height)
+            
+            # Calculate button position
+            button_x = self.selection.right() - button_width - 5  # 5px padding
+            button_y = self.selection.bottom() - button_height - 5  # 5px padding
+            
+            # Ensure button stays within window bounds
+            if button_x < self.window_bounds.x():
+                button_x = self.window_bounds.x() + 5
+            elif button_x + button_width > self.window_bounds.right():
+                button_x = self.window_bounds.right() - button_width - 5
+                
+            if button_y < self.window_bounds.y():
+                button_y = self.window_bounds.y() + 5
+            elif button_y + button_height > self.window_bounds.bottom():
+                button_y = self.window_bounds.bottom() - button_height - 5
+            
+            self.confirm_button.move(button_x, button_y)
+
     def mousePressEvent(self, event):
         """Handle mouse press events."""
         if event.button() == Qt.MouseButton.LeftButton:
-            pos = event.position().toPoint()  # Convert to QPoint
-            handle_size = 10
+            pos = event.position().toPoint()
             
-            # Check if clicking on resize handles
-            if self.selection:
-                # Top-left
-                if abs(pos.x() - self.selection.left()) < handle_size and abs(pos.y() - self.selection.top()) < handle_size:
-                    self.resizing = True
-                    self.resize_edge = 'top-left'
-                    return
-                # Top-right
-                elif abs(pos.x() - self.selection.right()) < handle_size and abs(pos.y() - self.selection.top()) < handle_size:
-                    self.resizing = True
-                    self.resize_edge = 'top-right'
-                    return
-                # Bottom-left
-                elif abs(pos.x() - self.selection.left()) < handle_size and abs(pos.y() - self.selection.bottom()) < handle_size:
-                    self.resizing = True
-                    self.resize_edge = 'bottom-left'
-                    return
-                # Bottom-right
-                elif abs(pos.x() - self.selection.right()) < handle_size and abs(pos.y() - self.selection.bottom()) < handle_size:
-                    self.resizing = True
-                    self.resize_edge = 'bottom-right'
-                    return
+            # Check if clicking the confirm button
+            if self.confirm_button.geometry().contains(pos):
+                return
             
-            # Check if clicking inside selection for dragging
-            if self.selection and self.selection.contains(pos):
+            # Check if clicking inside selection
+            if self.selection.contains(pos):
                 self.dragging = True
                 self.drag_start = pos - self.selection.topLeft()
                 self.setCursor(Qt.CursorShape.ClosedHandCursor)
-    
+                return
+            
+            # Check for resize handles
+            handle_size = 10
+            for edge in ['NW', 'NE', 'SW', 'SE']:
+                if self.get_resize_handle(edge).contains(pos):
+                    self.resizing = True
+                    self.resize_edge = edge
+                    self.resize_start = QRect(self.selection)
+                    self.drag_start = pos
+                    return
+            
+            # Start new selection
+            self.selection = QRect(pos, pos)
+            self.update()
+            self.update_confirm_button_position()
+
     def mouseMoveEvent(self, event):
         """Handle mouse move events."""
-        pos = event.position().toPoint()  # Convert to QPoint
+        pos = event.position().toPoint()
         
-        if self.resizing:
-            if self.resize_edge == 'top-left':
-                self.selection.setTopLeft(pos)
-            elif self.resize_edge == 'top-right':
-                self.selection.setTopRight(pos)
-            elif self.resize_edge == 'bottom-left':
-                self.selection.setBottomLeft(pos)
-            elif self.resize_edge == 'bottom-right':
-                self.selection.setBottomRight(pos)
-            self.update()
-            
-        elif self.dragging:
+        if self.dragging:
+            # Update selection position while dragging
             new_pos = pos - self.drag_start
             self.selection.moveTopLeft(new_pos)
             self.update()
+            self.update_confirm_button_position()
+            
+        elif self.resizing:
+            # Calculate resize based on edge
+            if self.resize_edge == 'SE':
+                self.selection.setBottomRight(pos)
+            elif self.resize_edge == 'SW':
+                self.selection.setBottomLeft(pos)
+            elif self.resize_edge == 'NE':
+                self.selection.setTopRight(pos)
+            elif self.resize_edge == 'NW':
+                self.selection.setTopLeft(pos)
+            
+            self.update()
+            self.update_confirm_button_position()
             
         else:
             # Update cursor based on position
             handle_size = 10
-            if self.selection:
-                # Near corners
-                if (abs(pos.x() - self.selection.left()) < handle_size and 
-                    abs(pos.y() - self.selection.top()) < handle_size):
-                    self.setCursor(Qt.CursorShape.SizeFDiagCursor)
-                elif (abs(pos.x() - self.selection.right()) < handle_size and 
-                      abs(pos.y() - self.selection.top()) < handle_size):
-                    self.setCursor(Qt.CursorShape.SizeBDiagCursor)
-                elif (abs(pos.x() - self.selection.left()) < handle_size and 
-                      abs(pos.y() - self.selection.bottom()) < handle_size):
-                    self.setCursor(Qt.CursorShape.SizeBDiagCursor)
-                elif (abs(pos.x() - self.selection.right()) < handle_size and 
-                      abs(pos.y() - self.selection.bottom()) < handle_size):
-                    self.setCursor(Qt.CursorShape.SizeFDiagCursor)
-                # Inside selection
-                elif self.selection.contains(pos):
-                    self.setCursor(Qt.CursorShape.OpenHandCursor)
-                else:
-                    self.setCursor(Qt.CursorShape.CrossCursor)
+            for edge in ['NW', 'NE', 'SW', 'SE']:
+                if self.get_resize_handle(edge).contains(pos):
+                    cursor = Qt.CursorShape.CrossCursor if edge in ['NW', 'SE'] else Qt.CursorShape.CrossCursor
+                    self.setCursor(cursor)
+                    return
+            
+            if self.selection.contains(pos):
+                self.setCursor(Qt.CursorShape.OpenHandCursor)
+            else:
+                self.setCursor(Qt.CursorShape.CrossCursor)
     
     def mouseReleaseEvent(self, event):
         """Handle mouse release events."""
@@ -247,7 +264,7 @@ class RegionSelector(QWidget):
             self.resizing = False
             self.resize_edge = None
             # Reset cursor if not over selection
-            pos = event.position().toPoint()  # Convert to QPoint
+            pos = event.position().toPoint()
             if not self.selection.contains(pos):
                 self.setCursor(Qt.CursorShape.CrossCursor)
             else:
