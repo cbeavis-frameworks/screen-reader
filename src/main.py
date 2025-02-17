@@ -170,14 +170,16 @@ class RegionSelector(QWidget):
     def paintEvent(self, event):
         """Paint the selection overlay."""
         painter = QPainter(self)
-        
-        # Set up semi-transparent overlay
-        overlay_color = QColor(0, 0, 0, 128)
-        painter.fillRect(self.rect(), overlay_color)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         
         if hasattr(self, 'selection') and self.selection.isValid():
-            # Clear selection area
-            painter.eraseRect(self.selection)
+            # Draw semi-transparent overlay for the entire window
+            overlay_color = QColor(0, 0, 0, 100)  # Reduced opacity
+            painter.fillRect(self.rect(), overlay_color)
+            
+            # Create semi-transparent selection area
+            selection_overlay = QColor(255, 255, 255, 50)  # Light, semi-transparent
+            painter.fillRect(self.selection, selection_overlay)
             
             # Draw selection border
             pen = QPen(QColor(0, 120, 215), 2)
@@ -192,11 +194,12 @@ class RegionSelector(QWidget):
                 handle = self.get_resize_handle(edge)
                 painter.drawRect(handle)
             
-            # Position confirm button at bottom center of selection
-            button_x = self.selection.center().x() - self.confirm_button.width() // 2
-            button_y = self.selection.bottom() - self.confirm_button.height() - 10
-            self.confirm_button.move(button_x, button_y)
-            self.confirm_button.show()
+            # Position confirm button at bottom right of selection
+            self.update_confirm_button_position()
+        else:
+            # Just draw a very light overlay when no selection
+            overlay_color = QColor(0, 0, 0, 1)
+            painter.fillRect(self.rect(), overlay_color)
     
     def update_confirm_button_position(self):
         """Update the position of the confirm button to stay within the selection."""
