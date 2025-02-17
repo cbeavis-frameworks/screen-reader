@@ -172,14 +172,16 @@ class RegionSelector(QWidget):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         
         if hasattr(self, 'selection') and self.selection.isValid():
-            # No dark overlay, keep background transparent
+            # Draw semi-transparent selection area
+            selection_overlay = QColor(255, 255, 255, 40)  # Very light, mostly transparent
+            painter.fillRect(self.selection, selection_overlay)
             
-            # Draw selection border with a light blue color
-            pen = QPen(QColor(0, 120, 215, 180), 2)  # Semi-transparent blue
+            # Draw selection border
+            pen = QPen(QColor(0, 120, 215), 2)
             painter.setPen(pen)
             painter.drawRect(self.selection)
             
-            # Draw resize handles with a solid blue color
+            # Draw resize handles
             handle_color = QColor(0, 120, 215)
             painter.setBrush(handle_color)
             
