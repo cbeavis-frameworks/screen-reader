@@ -383,60 +383,60 @@ class MainWindow(QMainWindow):
     def setup_ui(self):
         """Initialize the user interface."""
         self.setWindowTitle("Screen Reader Debug")
-        self.setGeometry(100, 100, 1200, 800)
-
+        
+        # Set window size
+        self.resize(800, 600)  # Reasonable default size
+        
         # Create main layout
         main_layout = QVBoxLayout()
+        main_layout.setContentsMargins(10, 10, 10, 10)
+        main_layout.setSpacing(10)
         
-        # Create top controls
+        # Create controls layout
         controls_layout = QHBoxLayout()
+        controls_layout.setSpacing(10)
         
-        # Window selection
+        # Window selection combo
         self.window_combo = QComboBox()
         self.window_combo.currentIndexChanged.connect(self.on_window_selected)
-        controls_layout.addWidget(QLabel("Window:"))
         controls_layout.addWidget(self.window_combo)
         
         # Region selection button
         self.region_button = QPushButton("Select Region")
         self.region_button.clicked.connect(self.select_region)
+        self.region_button.setEnabled(False)
         controls_layout.addWidget(self.region_button)
         
         # Capture control button
         self.capture_button = QPushButton("Start Capture")
         self.capture_button.clicked.connect(self.toggle_capture)
+        self.capture_button.setEnabled(False)
         controls_layout.addWidget(self.capture_button)
-        
-        # Always on top button
-        self.always_top_button = QPushButton("Toggle Always On Top")
-        self.always_top_button.clicked.connect(self.toggle_always_on_top)
-        controls_layout.addWidget(self.always_top_button)
         
         main_layout.addLayout(controls_layout)
         
-        # Create tab widget for debug views
+        # Create tab widget for logs and preview
         self.tab_widget = QTabWidget()
         
         # Debug log tab
         self.debug_log = QTextEdit()
         self.debug_log.setReadOnly(True)
+        self.debug_log.setLineWrapMode(QTextEdit.LineWrapMode.NoWrap)
+        self.debug_log.setMinimumWidth(400)  # Ensure readable width
         self.tab_widget.addTab(self.debug_log, "Debug Log")
+        
+        # Text log tab
+        self.text_log = QTextEdit()
+        self.text_log.setReadOnly(True)
+        self.text_log.setLineWrapMode(QTextEdit.LineWrapMode.NoWrap)
+        self.text_log.setMinimumWidth(400)  # Ensure readable width
+        self.tab_widget.addTab(self.text_log, "Captured Text")
         
         # Image preview tab
         self.image_preview = QLabel()
+        self.image_preview.setMinimumSize(400, 300)  # Reasonable preview size
         self.image_preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.image_preview.setMinimumSize(400, 300)
-        self.tab_widget.addTab(self.image_preview, "Last Capture")
-        
-        # Captured text tab
-        self.text_log = QTextEdit()
-        self.text_log.setReadOnly(True)
-        self.tab_widget.addTab(self.text_log, "Captured Text")
-        
-        # Dialog summary tab
-        self.dialog_log = QTextEdit()
-        self.dialog_log.setReadOnly(True)
-        self.tab_widget.addTab(self.dialog_log, "Dialog Summary")
+        self.tab_widget.addTab(self.image_preview, "Image Preview")
         
         main_layout.addWidget(self.tab_widget)
         
