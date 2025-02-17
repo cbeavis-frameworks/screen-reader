@@ -96,7 +96,8 @@ class RegionSelector(QWidget):
         else:
             # Default to full window if no initial region
             self.selection = QRect(
-                0, 0,  # Relative to widget
+                0,  # Relative to widget
+                0,  # Relative to widget
                 window_bounds.width(),
                 window_bounds.height()
             )
@@ -548,28 +549,25 @@ class MainWindow(QMainWindow):
             # Update debug log
             if self.debug_log_file.exists():
                 with open(self.debug_log_file, 'r') as f:
-                    current_text = f.read()
-                    if current_text != self.debug_log.toPlainText():
-                        self.debug_log.setText(current_text)
-                        # Scroll to bottom
-                        self.debug_log.verticalScrollBar().setValue(
-                            self.debug_log.verticalScrollBar().maximum()
-                        )
+                    self.debug_log.setText(
+                        f.read()
+                    )
             
-            # Update image preview
-            self.update_preview(self.last_capture)
+            # Only update preview if we have a capture
+            if self.last_capture is not None:
+                self.update_preview(self.last_capture)
             
             # Update captured text
             if self.captured_text_file.exists():
                 with open(self.captured_text_file, 'r') as f:
-                    current_text = f.read()
-                    if current_text != self.text_log.toPlainText():
-                        self.text_log.setText(current_text)
-                        # Scroll to bottom
-                        self.text_log.verticalScrollBar().setValue(
-                            self.text_log.verticalScrollBar().maximum()
-                        )
-                        
+                    self.text_log.setText(
+                        f.read()
+                    )
+            
+            # Scroll logs to bottom
+            self.debug_log.moveCursor(QTextCursor.MoveOperation.End)
+            self.text_log.moveCursor(QTextCursor.MoveOperation.End)
+            
         except Exception as e:
             print(f"Error updating displays: {str(e)}")  # Use print to avoid recursive logging
             
@@ -712,7 +710,11 @@ class MainWindow(QMainWindow):
                 
                 self.region = region
                 self.relative_region = relative_region
+                
+                # Enable capture button but don't start capture
                 self.capture_button.setEnabled(True)
+                self.capture_button.setText("Start Capture")
+                self.capturing = False
                 
                 self.log_message(f"[REGION] Saved relative region: {json.dumps(relative_region, indent=2)}")
                 self.log_message("[INFO] Ready to capture")
