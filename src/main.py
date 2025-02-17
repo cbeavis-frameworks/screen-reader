@@ -29,6 +29,7 @@ import Quartz
 import threading
 from openai_client import OpenAIClient
 from dialog_summarizer import start_dialog_summarizer, DialogSummarizer
+import imagehash
 
 def get_windsurf_app():
     """Get Windsurf application if it's running."""
@@ -366,6 +367,7 @@ class MainWindow(QMainWindow):
         self.capturing = False
         self.last_capture = None
         self.last_image_hash = None
+        self.hash_threshold = 5  # Threshold for image difference (adjust as needed)
         self.capture_timer = QTimer()
         self.capture_timer.timeout.connect(self.capture_screen)
         self.capture_timer.setInterval(2000)  # 2 seconds
@@ -498,12 +500,13 @@ class MainWindow(QMainWindow):
                 # Convert to PIL Image
                 img = Image.frombytes("RGB", screenshot.size, screenshot.rgb)
                 
-                # Calculate image hash
-                current_hash = hashlib.md5(img.tobytes()).hexdigest()
+                # Calculate perceptual hash
+                current_hash = imagehash.average_hash(img)
                 
-                # Check if image has changed
-                if current_hash != self.last_image_hash:
-                    self.log_message("[INFO] Change detected in captured region")
+                # Check if image has changed significantly
+                if self.last_image_hash is None or \
+                   abs(current_hash - self.last_image_hash) > self.hash_threshold:
+                    self.log_message("[INFO] Significant change detected in captured region")
                     
                     # Update state
                     self.last_capture = img
@@ -514,7 +517,7 @@ class MainWindow(QMainWindow):
                     
                     self.log_message("[INFO] New image captured and saved")
                 else:
-                    self.log_message("[INFO] No change detected")
+                    self.log_message("[INFO] No significant change detected")
                 
         except Exception as e:
             self.log_message(f"[ERROR] Error capturing screen: {str(e)}")
