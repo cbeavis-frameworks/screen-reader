@@ -18,6 +18,21 @@ All notable changes to this project will be documented in this file.
   - Improved window selection UI
   - Enhanced region selection feedback
   - Added always-on-top toggle
+- Window-specific screen capture using Quartz
+- Image comparison to detect changes
+- Preview updates for changed images only
+
+### Changed
+- Improved region selector transparency and behavior
+- Window size and positioning optimizations
+- Better coordinate handling for region selection
+- Reordered UI tabs to put Image Preview tab second after Debug Log (2025-02-17)
+
+### Fixed
+- Region selector now only shows on target window
+- Capture only triggers on Start button press
+- Window-specific capture prevents capturing overlapping windows
+- Coordinate conversion between screen and window space
 
 ## [Released]
 No releases yet.

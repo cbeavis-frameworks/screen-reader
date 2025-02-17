@@ -440,18 +440,18 @@ class MainWindow(QMainWindow):
         self.debug_log.setMinimumWidth(400)  # Ensure readable width
         self.tab_widget.addTab(self.debug_log, "Debug Log")
         
+        # Image preview tab
+        self.image_preview = QLabel()
+        self.image_preview.setMinimumSize(400, 300)  # Reasonable preview size
+        self.image_preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.tab_widget.addTab(self.image_preview, "Image Preview")
+        
         # Text log tab
         self.text_log = QTextEdit()
         self.text_log.setReadOnly(True)
         self.text_log.setLineWrapMode(QTextEdit.LineWrapMode.NoWrap)
         self.text_log.setMinimumWidth(400)  # Ensure readable width
         self.tab_widget.addTab(self.text_log, "Captured Text")
-        
-        # Image preview tab
-        self.image_preview = QLabel()
-        self.image_preview.setMinimumSize(400, 300)  # Reasonable preview size
-        self.image_preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.tab_widget.addTab(self.image_preview, "Image Preview")
         
         main_layout.addWidget(self.tab_widget)
         
