@@ -9,8 +9,7 @@ from pathlib import Path
 from datetime import datetime
 from PIL import Image
 import numpy as np
-import mss.tools  # Changed from 'import mss'
-from mss import mss  # Added this line
+import mss  # Import just mss
 import io
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -482,8 +481,8 @@ class MainWindow(QMainWindow):
                 self.log_message("[ERROR] No region selected")
                 return
             
-            # Create screenshot
-            with mss.mss() as sct:  # Use mss.mss() instead of just mss()
+            # Create screenshot using mss
+            with mss.mss() as sct:
                 # Get region coordinates
                 monitor = {
                     "top": self.region['y'],
