@@ -96,8 +96,7 @@ class RegionSelector(QWidget):
         else:
             # Default to full window if no initial region
             self.selection = QRect(
-                window_bounds.x(),
-                window_bounds.y(),
+                0, 0,  # Relative to widget
                 window_bounds.width(),
                 window_bounds.height()
             )
@@ -125,8 +124,8 @@ class RegionSelector(QWidget):
             }
         """)
         
-        # Set geometry
-        self.setGeometry(0, 0, QApplication.primaryScreen().size().width(), QApplication.primaryScreen().size().height())
+        # Set geometry to match window bounds
+        self.setGeometry(window_bounds)
         self.update_confirm_button_position()
     
     def get_resize_handle(self, edge):
@@ -214,15 +213,15 @@ class RegionSelector(QWidget):
             button_y = self.selection.bottom() - button_height - 5  # 5px padding
             
             # Ensure button stays within window bounds
-            if button_x < self.window_bounds.x():
-                button_x = self.window_bounds.x() + 5
-            elif button_x + button_width > self.window_bounds.right():
-                button_x = self.window_bounds.right() - button_width - 5
+            if button_x < 0:
+                button_x = 5
+            elif button_x + button_width > self.width():
+                button_x = self.width() - button_width - 5
                 
-            if button_y < self.window_bounds.y():
-                button_y = self.window_bounds.y() + 5
-            elif button_y + button_height > self.window_bounds.bottom():
-                button_y = self.window_bounds.bottom() - button_height - 5
+            if button_y < 0:
+                button_y = 5
+            elif button_y + button_height > self.height():
+                button_y = self.height() - button_height - 5
             
             self.confirm_button.move(button_x, button_y)
 
@@ -312,9 +311,10 @@ class RegionSelector(QWidget):
     def confirm_selection(self):
         """Confirm the selection and emit the region."""
         if self.selection:
+            # Convert selection to screen coordinates
             region = {
-                'x': self.selection.x() + self.window_bounds.x(),
-                'y': self.selection.y() + self.window_bounds.y(),
+                'x': self.window_bounds.x() + self.selection.x(),
+                'y': self.window_bounds.y() + self.selection.y(),
                 'width': self.selection.width(),
                 'height': self.selection.height()
             }
