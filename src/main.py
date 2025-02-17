@@ -623,11 +623,8 @@ class MainWindow(QMainWindow):
         try:
             # Load environment variables
             load_dotenv()
-            if not os.getenv("OPENAI_API_KEY"):
-                print("Error: OPENAI_API_KEY not found in environment variables")
-                return
             
-            # Create Qt application
+            # Initialize QApplication
             app = QApplication(sys.argv)
             
             # Create and setup asyncio loop
@@ -664,37 +661,16 @@ def main():
     try:
         # Load environment variables
         load_dotenv()
-        if not os.getenv("OPENAI_API_KEY"):
-            print("Error: OPENAI_API_KEY not found in environment variables")
-            return
-            
-        # Create Qt application
+        
+        # Initialize QApplication
         app = QApplication(sys.argv)
         
-        # Create and setup asyncio loop
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        
-        # Run event loop in a separate thread
-        def run_event_loop():
-            loop.run_forever()
-            
-        loop_thread = threading.Thread(target=run_event_loop, daemon=True)
-        loop_thread.start()
-        
-        # Create main window
+        # Create and show main window
         window = MainWindow()
         window.show()
         
-        # Run Qt event loop
-        exit_code = app.exec()
-        
-        # Clean up
-        loop.call_soon_threadsafe(loop.stop)
-        loop_thread.join(timeout=1.0)
-        loop.close()
-        
-        sys.exit(exit_code)
+        # Start event loop
+        sys.exit(app.exec())
         
     except Exception as e:
         print(f"Error: {str(e)}")
