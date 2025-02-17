@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file, with entries added when changes are pushed to the repository.
 
+### 2025-02-17 21:04 [3fd895e]
+- Improved OpenAI API call handling:
+  * Added concurrency control to prevent overlapping calls
+  * Added prompt and response logging to files
+  * Clear prompt/response logs on startup
+- Enhanced error handling and logging:
+  * Better error messages for API calls
+  * Proper cleanup of temporary files
+  * Improved state management
+
 ### 2025-02-17 20:23 [2a1693f]
 - Improved text extraction prompt:
   * Removed specific message box references for more general use

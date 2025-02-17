@@ -27,12 +27,26 @@ Core Features
      * Ignores status messages
      * Prevents duplicates
    - Maintains conversation history
+   - Concurrency control:
+     * Single active API call at a time
+     * Skips overlapping requests
+   - Detailed logging:
+     * Timestamped prompt files
+     * Response tracking
+     * Clean startup state
 
 4. Dialog Processing
    - First-person tone for natural conversation
    - Speech-optimized brevity
    - Automatic timestamping
    - Prevents duplicate dialog entries
+   - Concurrency management:
+     * One active summarization at a time
+     * Proper state handling
+   - Debug-friendly logging:
+     * All prompts saved to files
+     * Response tracking
+     * Fresh start on launch
 
 Key Components
 -------------
@@ -97,5 +111,6 @@ Recent Updates
 - Speech-optimized dialog processing
 - Better error handling and logging
 - Improved prompt handling for text processing
+- Added concurrency control and detailed logging
 
 Note: Generated files are excluded from version control.
