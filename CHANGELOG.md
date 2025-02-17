@@ -1,43 +1,39 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
+All notable changes to this project will be documented in this file, with entries added when changes are pushed to the repository.
 
-## [Unreleased]
-### Added
-- Window-specific screen capture using Quartz
-- Image comparison to detect changes
-- Preview updates for changed images only
-
-### Changed
+### 2025-02-17 14:34 [a36a01b4]
+- Reorganized changelog format to include timestamps and commit hashes
+- Merged all development work to main branch
+- Added image comparison to detect changes
+- Added preview updates for changed images only
 - Improved region selector transparency and behavior
-- Window size and positioning optimizations
-- Better coordinate handling for region selection
+- Optimized window size and positioning
+- Enhanced coordinate handling for region selection
+- Fixed various issues:
+  * Capture triggering on Start button press
+  * Window-specific capture preventing overlapping windows
+  * Coordinate conversion between screen and window space
 
-### Fixed
-- Capture only triggers on Start button press
-- Window-specific capture prevents capturing overlapping windows
-- Coordinate conversion between screen and window space
-
-## [Released]
 ### 2025-02-17 14:22 [7a51b7bb2d]
 - Reordered UI tabs to put Image Preview after Debug Log
 
 ### 2025-02-17 14:17 [c0e408b]
-- Initial project setup with git repository and changelog
-- Enhanced UI with debug tabs for better monitoring
-  - Debug log tab for application messages
-  - Image preview tab for last capture
-  - Captured text log tab
-  - Dialog summarization log tab
-- Improved image capture functionality
-  - Added image hashing to detect changes
-  - Disabled OpenAI processing temporarily
-  - Added timestamp-based image saving
-- Better window management
-  - Improved window selection UI
-  - Enhanced region selection feedback
-  - Added always-on-top toggle
-- Improved region selector transparency and behavior
-- Window size and positioning optimizations
-- Better coordinate handling for region selection
-- Fixed: Region selector now only shows on target window
+- Initial project setup and core functionality
+  - Basic UI with debug tabs
+    * Debug log for application messages
+    * Image preview for last capture
+    * Captured text log
+  - Window management features
+    * Window selection interface
+    * Region selection with visual feedback
+    * Always-on-top toggle
+  - Image capture system
+    * Window-specific capture using Quartz
+    * Image hashing for change detection
+    * Timestamp-based image saving
+  - Quality improvements
+    * Enhanced region selector transparency
+    * Better window size and positioning
+    * Improved coordinate handling
+    * Fixed region selector window targeting
