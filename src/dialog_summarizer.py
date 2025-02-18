@@ -197,12 +197,14 @@ class DialogSummarizer:
                 return
                 
             # Strip timestamps from the captured text
-            # Format: [YYYY-MM-DD HH:MM:SS] Text
             cleaned_text = []
             for line in current_text.split('\n'):
                 line = line.strip()
                 if line:
-                    # Remove timestamp if present
+                    # Skip empty lines and timestamp-only lines
+                    if line == '' or line.startswith('###'):
+                        continue
+                    # Remove timestamp if present (multiple formats)
                     if line.startswith('[') and ']' in line:
                         line = line.split(']', 1)[1].strip()
                     cleaned_text.append(line)
