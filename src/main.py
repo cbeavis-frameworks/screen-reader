@@ -27,6 +27,7 @@ from openai_client import OpenAIClient
 from region_selector import RegionSelector
 from dialog_summarizer import DialogSummarizer, DialogObserver
 from tts_streamer import TTSStreamer
+from chat_monitor import ChatMonitor
 
 import hashlib
 import mss
@@ -36,7 +37,6 @@ from dotenv import load_dotenv
 import AppKit
 import Quartz
 import threading
-from chat_monitor import ChatMonitor
 
 def get_windsurf_app():
     """Get Windsurf application if it's running."""
@@ -557,7 +557,7 @@ class MainWindow(QMainWindow):
                 
             event.accept()
         except Exception as e:
-            self.log_message(f"[ERROR] Error during close: {str(e)}")
+            self.log_message(f"[ERROR] Error during shutdown: {str(e)}")
             event.accept()
             
 def run_event_loop():
