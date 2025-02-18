@@ -3,11 +3,14 @@ import asyncio
 import queue
 import threading
 import shutil
+import subprocess
 from pathlib import Path
 from typing import Optional, Tuple, Set
 from elevenlabs import stream
 from elevenlabs.client import ElevenLabs
 from dotenv import load_dotenv
+from datetime import datetime
+import time
 
 class TTSStreamer:
     def __init__(self, voice_name: Optional[str] = None):
@@ -44,11 +47,134 @@ class TTSStreamer:
         self.is_speaking = False
         self.should_stop = False
         self.processed_files = set()  # Track processed files
+        self.original_mic_volume = None
+        
+        # Set up debug log file
+        self.base_dir = Path(__file__).parent.parent
+        self.debug_log_file = self.base_dir / "output" / "debug.log"
         
         # Start the processing loop
         self.loop = asyncio.new_event_loop()
         self.thread = threading.Thread(target=self._run_event_loop, daemon=True)
         self.thread.start()
+
+    def _log_message(self, message: str):
+        """Log a message to the debug log file."""
+        try:
+            # Get timestamp
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            
+            # Format message
+            log_entry = f"[{timestamp}] [TTS] {message}\n"
+            
+            # Write to file
+            with open(self.debug_log_file, 'a') as f:
+                f.write(log_entry)
+                
+        except Exception as e:
+            print(f"Error logging message: {str(e)}")
+
+    def _toggle_voice_control(self, enable: bool):
+        """Toggle macOS Voice Control listening state using AXUIElement.
+        
+        Args:
+            enable: True to start listening, False to stop listening
+        """
+        try:
+            script = '''
+            tell application "System Events"
+                set frontmost of process "ControlCenter" to true
+                tell process "ControlCenter"
+                    -- Find the Voice Control menu item by cycling through all menu items
+                    repeat with i from 1 to count of menu bar items of menu bar 1
+                        set currentItem to menu bar item i of menu bar 1
+                        try
+                            -- Try to get the description of the menu item
+                            set itemDesc to description of currentItem
+                            if itemDesc contains "Voice Control" then
+                                -- Found the Voice Control menu item
+                                click currentItem
+                                delay 0.5
+                                -- Click the appropriate menu item
+                                click menu item "''' + ('Start' if enable else 'Stop') + ''' Listening" of menu 1 of currentItem
+                                return true
+                            end if
+                        end try
+                    end repeat
+                end tell
+            end tell
+            '''
+            
+            result = subprocess.run(['osascript', '-e', script], capture_output=True, text=True)
+            status = "started" if enable else "stopped"
+            self._log_message(f"Voice Control {status} listening command (exit code: {result.returncode})")
+            if result.stderr:
+                self._log_message(f"Voice Control {status} error: {result.stderr}")
+            else:
+                self._log_message(f"Voice Control successfully {status} listening")
+        except Exception as e:
+            self._log_message(f"Error controlling Voice Control: {e}")
+
+    def _get_mic_volume(self) -> int:
+        """Get the current microphone input volume.
+        
+        Returns:
+            Current microphone volume (0-100) or None if error
+        """
+        try:
+            script = '''
+            tell application "System Events"
+                get input volume of (get volume settings)
+            end tell
+            '''
+            result = subprocess.run(['osascript', '-e', script], capture_output=True, text=True)
+            if result.returncode == 0:
+                return int(result.stdout.strip())
+        except Exception as e:
+            self._log_message(f"Error getting microphone volume: {e}")
+        return None
+
+    def _mute_microphone(self):
+        """Mute the microphone by setting input volume to 0.
+        First saves the current volume if not already saved."""
+        try:
+            # Only save the original volume if we haven't already
+            if self.original_mic_volume is None:
+                self.original_mic_volume = self._get_mic_volume()
+                if self.original_mic_volume is None:
+                    self.original_mic_volume = 50  # Default fallback value
+                self._log_message(f"Saved original microphone volume: {self.original_mic_volume}")
+            
+            # Set input volume to 0
+            script = '''
+            tell application "System Events"
+                set volume input volume 0
+            end tell
+            '''
+            result = subprocess.run(['osascript', '-e', script], capture_output=True, text=True)
+            if result.returncode == 0:
+                self._log_message("Microphone muted")
+            else:
+                self._log_message(f"Error muting microphone: {result.stderr}")
+        except Exception as e:
+            self._log_message(f"Error muting microphone: {e}")
+
+    def _restore_microphone(self):
+        """Restore the microphone to its original volume."""
+        try:
+            if self.original_mic_volume is not None:
+                script = f'''
+                tell application "System Events"
+                    set volume input volume {self.original_mic_volume}
+                end tell
+                '''
+                result = subprocess.run(['osascript', '-e', script], capture_output=True, text=True)
+                if result.returncode == 0:
+                    self._log_message(f"Restored microphone volume to {self.original_mic_volume}")
+                else:
+                    self._log_message(f"Error restoring microphone: {result.stderr}")
+        except Exception as e:
+            self._log_message(f"Error restoring microphone: {e}")
 
     def _run_event_loop(self):
         """Run the async event loop in a separate thread."""
@@ -69,8 +195,14 @@ class TTSStreamer:
                         continue
                         
                     self.is_speaking = True
+                    # Disable Voice Control before playing
+                    self._log_message("Starting audio playback, disabling Voice Control...")
+                    self._toggle_voice_control(False)
                     
                     try:
+                        # Mute microphone before TTS playback
+                        self._mute_microphone()
+                        
                         # Generate audio stream using the selected voice
                         audio_stream = self.client.text_to_speech.convert_as_stream(
                             text=dialog_text,
@@ -92,8 +224,13 @@ class TTSStreamer:
                             shutil.move(str(dialog_file), str(played_path))
                         
                     except Exception as e:
-                        print(f"Error streaming audio: {e}")
+                        self._log_message(f"Error streaming audio: {e}")
                     finally:
+                        # Always restore microphone after TTS playback, even if there was an error
+                        self._restore_microphone()
+                        # Re-enable Voice Control after playing
+                        self._log_message("Audio playback finished, re-enabling Voice Control...")
+                        self._toggle_voice_control(True)
                         self.is_speaking = False
                         self.dialog_queue.task_done()
                         
@@ -104,7 +241,7 @@ class TTSStreamer:
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                print(f"Error in queue processing: {e}")
+                self._log_message(f"Error in queue processing: {e}")
                 await asyncio.sleep(1)  # Wait before retrying
 
     def add_dialog(self, text: str, dialog_file: Path):

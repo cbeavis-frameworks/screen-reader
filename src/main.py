@@ -17,23 +17,26 @@ from PyQt6.QtGui import (
 from PIL import Image, ImageQt
 import imagehash
 
-# Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# Get the directory containing the script
+current_dir = Path(__file__).resolve().parent
 
-from src.openai_client import OpenAIClient
-from src.region_selector import RegionSelector
-from src.dialog_summarizer import DialogSummarizer, DialogObserver
-from src.tts_streamer import TTSStreamer
+# Add the parent directory to the Python path
+sys.path.append(str(current_dir.parent))
+
+from openai_client import OpenAIClient
+from region_selector import RegionSelector
+from dialog_summarizer import DialogSummarizer, DialogObserver
+from tts_streamer import TTSStreamer
 
 import hashlib
-import mss  # Import just mss
+import mss
 import io
 import numpy as np
 from dotenv import load_dotenv
 import AppKit
 import Quartz
 import threading
-from src.chat_monitor import ChatMonitor
+from chat_monitor import ChatMonitor
 
 def get_windsurf_app():
     """Get Windsurf application if it's running."""
