@@ -155,7 +155,7 @@ class MainWindow(QMainWindow):
         try:
             self.openai_client = OpenAIClient()
             self.dialog_observer = DialogObserver(str(self.output_dir))
-            self.tts_streamer = TTSStreamer()  # Initialize with default voice
+            self.tts_streamer = TTSStreamer(voice_name="Grey wizard")  # Initialize with Grey wizard voice
             self.dialog_observer.start()
             self.log_message("[INIT] OpenAI client, dialog observer, and TTS streamer initialized")
         except Exception as e:
