@@ -70,26 +70,17 @@ class DialogSummarizer:
             # Get the most recent files
             recent_files = dialog_files[-max_files:] if dialog_files else []
             
-            # Read the content of each file and add timestamp
+            # Read the content of each file
             dialogs = []
             for file in recent_files:
                 try:
-                    # Extract timestamp from filename
-                    # Format: dialog_YYYYMMDD_HHMMSS_NNN.txt
-                    timestamp_str = file.stem.split('_')[1:3]  # Get YYYYMMDD and HHMMSS parts
-                    if len(timestamp_str) >= 2:
-                        dt = datetime.strptime(f"{timestamp_str[0]}_{timestamp_str[1]}", "%Y%m%d_%H%M%S")
-                        formatted_time = dt.strftime("[%Y-%m-%d %H:%M:%S]")
-                        
-                        with open(file, 'r') as f:
-                            content = f.read().strip()
-                            if content:
-                                # Add timestamp to each line
-                                timestamped_lines = []
-                                for line in content.split('\n'):
-                                    if line.strip():
-                                        timestamped_lines.append(f"{formatted_time} {line}")
-                                dialogs.extend(timestamped_lines)
+                    with open(file, 'r') as f:
+                        content = f.read().strip()
+                        if content:
+                            # Add each line of content
+                            for line in content.split('\n'):
+                                if line.strip():
+                                    dialogs.append(line.strip())
                                 
                 except Exception as e:
                     print(f"[DIALOG] Error reading dialog file {file}: {e}")
@@ -138,7 +129,7 @@ class DialogSummarizer:
                     {"role": "user", "content": prompt}
                 ],
                 max_tokens=300,
-                temperature=0.5
+                temperature=0.7
             )
             
             # Parse response
