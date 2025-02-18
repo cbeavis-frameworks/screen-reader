@@ -23,6 +23,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from src.openai_client import OpenAIClient
 from src.region_selector import RegionSelector
 from src.dialog_summarizer import DialogSummarizer, DialogObserver
+from src.tts_streamer import TTSStreamer
 
 import hashlib
 import mss  # Import just mss
@@ -99,6 +100,10 @@ class MainWindow(QMainWindow):
         self.dialogs_dir = self.output_dir / "dialogs"
         self.dialogs_dir.mkdir(exist_ok=True)
         
+        # Create played dialogs directory
+        self.played_dialogs_dir = self.output_dir / "dialogs" / "played"
+        self.played_dialogs_dir.mkdir(exist_ok=True)
+        
         # Initialize files
         self.debug_log_file = self.output_dir / "debug.log"
         self.captured_text_file = self.output_dir / "captured_text.txt"
@@ -115,14 +120,24 @@ class MainWindow(QMainWindow):
             with open(self.captured_text_file, 'w') as f:
                 f.write('')  # Clear the file
                 
-        # Clear dialogs directory
+        # Clear all dialog files (both unplayed and played)
         if self.dialogs_dir.exists():
+            # Clear main dialogs directory
             for dialog_file in self.dialogs_dir.glob('dialog_*.txt'):
                 try:
                     dialog_file.unlink()
                 except Exception as e:
                     print(f"Failed to delete dialog file {dialog_file}: {e}")
-                    
+            
+            # Clear played dialogs directory
+            played_dir = self.dialogs_dir / "played"
+            if played_dir.exists():
+                for dialog_file in played_dir.glob('dialog_*.txt'):
+                    try:
+                        dialog_file.unlink()
+                    except Exception as e:
+                        print(f"Failed to delete played dialog file {dialog_file}: {e}")
+                        
         self.log_message("[INIT] Application started - cleared logs and dialogs")
         
         # Initialize state
@@ -140,12 +155,14 @@ class MainWindow(QMainWindow):
         try:
             self.openai_client = OpenAIClient()
             self.dialog_observer = DialogObserver(str(self.output_dir))
+            self.tts_streamer = TTSStreamer()  # Initialize with default voice
             self.dialog_observer.start()
-            self.log_message("[INIT] OpenAI client and dialog observer initialized")
+            self.log_message("[INIT] OpenAI client, dialog observer, and TTS streamer initialized")
         except Exception as e:
-            self.log_message(f"[ERROR] Failed to initialize OpenAI components: {str(e)}")
+            self.log_message(f"[ERROR] Failed to initialize components: {str(e)}")
             self.openai_client = None
             self.dialog_observer = None
+            self.tts_streamer = None
         
         # Setup UI
         self.setup_ui()
@@ -406,23 +423,45 @@ class MainWindow(QMainWindow):
                         cursor.movePosition(QTextCursor.MoveOperation.End)
                         self.debug_log.setTextCursor(cursor)
                         
-            # Update dialog display
+            # Update dialog display and stream new dialogs
             if self.dialogs_dir.exists():
-                dialog_text = []
-                for dialog_file in sorted(self.dialogs_dir.glob('dialog_*.txt')):
+                dialog_texts = []
+                
+                # Function to read and format dialog text
+                def format_dialog_text(file_path):
                     try:
-                        with open(dialog_file, 'r') as f:
+                        with open(file_path, 'r') as f:
                             text = f.read().strip()
                             if text:
                                 # Extract timestamp from filename
-                                timestamp = dialog_file.stem.split('_')[1:3]  # Get YYYYMMDD_HHMMSS
+                                timestamp = file_path.stem.split('_')[1:3]
                                 ts = f"{timestamp[0][:4]}-{timestamp[0][4:6]}-{timestamp[0][6:]} {timestamp[1][:2]}:{timestamp[1][2:4]}:{timestamp[1][4:]}"
-                                dialog_text.append(f"[{ts}] {text}")
+                                return f"[{ts}] {text}"
                     except Exception as e:
-                        print(f"Error reading dialog file {dialog_file}: {e}")
+                        self.log_message(f"[ERROR] Failed to read dialog file {file_path}: {e}")
+                    return None
+
+                # Process all dialogs for display, but only queue unplayed ones for TTS
+                all_files = sorted(list(self.dialogs_dir.glob('dialog_*.txt')) + 
+                                 list(self.played_dialogs_dir.glob('dialog_*.txt')))
+                
+                for dialog_file in all_files:
+                    formatted_text = format_dialog_text(dialog_file)
+                    if formatted_text:
+                        dialog_texts.append(formatted_text)
+                        
+                        # Only queue for TTS if it's in the main directory (unplayed)
+                        if dialog_file.parent == self.dialogs_dir and self.tts_streamer:
+                            try:
+                                with open(dialog_file, 'r') as f:
+                                    dialog_text = f.read().strip()
+                                    if dialog_text:
+                                        self.tts_streamer.add_dialog(dialog_text, dialog_file)
+                            except Exception as e:
+                                self.log_message(f"[ERROR] Failed to process dialog for TTS {dialog_file}: {e}")
                 
                 # Update dialog display if content has changed
-                dialog_content = '\n\n'.join(dialog_text)
+                dialog_content = '\n\n'.join(dialog_texts)
                 cursor = QTextCursor(self.dialog_log.document())
                 cursor.movePosition(QTextCursor.MoveOperation.End)
                 if dialog_content != self.dialog_log.toPlainText():
@@ -508,6 +547,10 @@ class MainWindow(QMainWindow):
             # Stop dialog observer
             if self.dialog_observer:
                 self.dialog_observer.stop()
+                
+            # Stop TTS streamer
+            if self.tts_streamer:
+                self.tts_streamer.stop()
                 
             event.accept()
         except Exception as e:
