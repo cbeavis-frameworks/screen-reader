@@ -58,13 +58,14 @@ class DialogSummarizer:
         self.lock = asyncio.Lock()
         
     async def get_previous_dialogs(self, max_files=20):
-        """Get the most recent dialog files."""
+        """Get the most recent dialog files from both unplayed and played directories."""
         if not self.dialogs_dir.exists():
             return []
             
         try:
-            # Get list of dialog files sorted by name (which includes timestamp)
-            dialog_files = sorted(self.dialogs_dir.glob('dialog_*.txt'))
+            # Get list of all dialog files (both unplayed and played)
+            dialog_files = sorted(list(self.dialogs_dir.glob('dialog_*.txt')) + 
+                               list((self.dialogs_dir / "played").glob('dialog_*.txt')))
             
             # Get the most recent files
             recent_files = dialog_files[-max_files:] if dialog_files else []
@@ -91,12 +92,12 @@ class DialogSummarizer:
                                 dialogs.extend(timestamped_lines)
                                 
                 except Exception as e:
-                    print(f"Error reading dialog file {file}: {e}")
+                    print(f"[DIALOG] Error reading dialog file {file}: {e}")
                     
             return dialogs
             
         except Exception as e:
-            print(f"Error getting previous dialogs: {e}")
+            print(f"[DIALOG] Error getting previous dialogs: {e}")
             return []
             
     async def summarize_text(self, text):
