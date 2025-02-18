@@ -48,6 +48,16 @@ Core Features
      * Response tracking
      * Fresh start on launch
 
+5. Text-to-Speech (TTS)
+   - Uses ElevenLabs API for high-quality speech synthesis
+   - Supports multiple voices
+   - Streams audio for real-time playback
+   - Automatically manages microphone volume during playback:
+     * Saves original microphone volume
+     * Mutes microphone before TTS playback
+     * Restores microphone after playback completes
+     * Prevents Voice Control from capturing TTS audio
+
 Key Components
 -------------
 1. Main Window (src/main.py)
@@ -77,6 +87,12 @@ Key Components
    - Timestamp management
    - Duplicate prevention
 
+5. ElevenLabs API Integration (src/tts_client.py)
+   - High-quality speech synthesis
+   - Supports multiple voices
+   - Streams audio for real-time playback
+   - Automatically manages microphone volume during playback
+
 File Structure
 -------------
 - src/: Source code
@@ -96,6 +112,7 @@ Dependencies
 - imagehash: Perceptual image comparison
 - mss: Screen capture
 - dotenv: Environment configuration
+- ElevenLabs API: Text-to-speech synthesis
 
 Configuration
 -----------
@@ -103,6 +120,7 @@ Configuration
 - Region selection saved between sessions
 - Configurable capture frequency (1s default)
 - Adjustable image comparison sensitivity
+- Customizable TTS settings
 
 Recent Updates
 ------------
@@ -112,5 +130,7 @@ Recent Updates
 - Better error handling and logging
 - Improved prompt handling for text processing
 - Added concurrency control and detailed logging
+- Integrated ElevenLabs API for TTS functionality
+- Added microphone volume control for TTS playback
 
 Note: Generated files are excluded from version control.
