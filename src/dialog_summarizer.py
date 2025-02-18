@@ -196,20 +196,31 @@ class DialogSummarizer:
             if not current_text or current_text == self.current_text:
                 return
                 
+            # Strip timestamps from the captured text
+            # Format: [YYYY-MM-DD HH:MM:SS] Text
+            cleaned_text = []
+            for line in current_text.split('\n'):
+                line = line.strip()
+                if line:
+                    # Remove timestamp if present
+                    if line.startswith('[') and ']' in line:
+                        line = line.split(']', 1)[1].strip()
+                    cleaned_text.append(line)
+            
+            cleaned_text = '\n'.join(cleaned_text)
+            
             # Update state and set flag
             self.summarization_in_progress = True
             try:
+                # Process the cleaned text
                 self.current_text = current_text
-                self.last_summary_time = datetime.now()
-                
-                # Process text
-                await self.summarize_text(current_text)
+                await self.summarize_text(cleaned_text)
             finally:
                 self.summarization_in_progress = False
                 
         except Exception as e:
+            print(f"[DIALOG] Error processing captured text: {e}")
             self.summarization_in_progress = False
-            print(f"Error processing captured text: {e}")
             
     def start(self):
         """Start monitoring for text changes."""
